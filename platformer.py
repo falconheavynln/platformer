@@ -32,6 +32,7 @@ pygame.display.set_caption(CAPTION)
 pygame.display.set_icon(pygame.image.load(join(FILE, ICON)))
 
 # test comment
+# animation
 
 # use extra player movements if you have time
 
