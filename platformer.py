@@ -31,6 +31,8 @@ wd = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption(CAPTION)
 pygame.display.set_icon(pygame.image.load(join(FILE, ICON)))
 
+# test comment
+
 # use extra player movements if you have time
 
 # pose var combines direction and animation_count,
