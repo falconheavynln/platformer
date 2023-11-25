@@ -33,6 +33,7 @@ pygame.display.set_icon(pygame.image.load(join(FILE, ICON)))
 
 # test comment
 # animation
+# test colaboration
 
 # use extra player movements if you have time
 
