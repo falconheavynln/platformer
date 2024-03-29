@@ -2,7 +2,8 @@ import os
 import random
 import math
 import pygame
-from os import listdir 
+
+from os import listdir
 from os.path import isfile, join
 
 pygame.init()
@@ -20,8 +21,7 @@ FRICTION = 4
 GRAVITY = 40
 TERMINALVEL = 180
 
-# FILE = join('C:','Users','falco','OneDrive - Lake Washington School District','python','tech_with_tim','platformer')
-FILE = '.'
+PATH = "assets"
 ICON = "earth_crust.png"
 TILE = "bg_tile_lvl1.png"
 PLAYER_LEFT = "player_left.png"
@@ -29,7 +29,7 @@ PLAYER_RIGHT = "player_right.png"
 
 wd = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption(CAPTION)
-pygame.display.set_icon(pygame.image.load(join(FILE, ICON)))
+pygame.display.set_icon(pygame.image.load(join(PATH, ICON)))
 
 # test comment
 # animation
@@ -44,8 +44,10 @@ pygame.display.set_icon(pygame.image.load(join(FILE, ICON)))
 
 # x_vel is velocity to the right
 
+
 def flip_img(sprites):
     return [pygame.transform.flip(sprite, True, False) for sprite in sprites]
+
 
 def load_sprite_sheets(path, width, height, direction=False):
     imgs = [f for f in listdir(path) if isfile(join(path, f))]
@@ -54,22 +56,29 @@ def load_sprite_sheets(path, width, height, direction=False):
         spritesheet = pygame.image.load(join(path, img)).convert_alpha()
         sprites = []
         for i in range(spritesheet.get_width() // width):
-            sprites.append(pygame.Surface((width, height), pygame.SRCALPHA, 32) \
-            .blit(spritesheet, (0, 0), pygame.Rect(i * width, 0, width, height)))
-    
+            sprites.append(
+                pygame.Surface((width, height), pygame.SRCALPHA, 32).blit(
+                    spritesheet, (0, 0), pygame.Rect(i * width, 0, width, height)
+                )
+            )
+
     if direction:
         allsprites[img.replace(".png", "") + "_right"] = sprites
-        allsprites[img.replace(".png", "") + "_left"] = flip_img(sprites)
+        # allsprites[img.replace(".png", "") + "_left"] = flip_img(sprites)
     else:
-        allsprites[img.replace(".png","")] = sprites
-    
+        allsprites[img.replace(".png", "")] = sprites
+
     return allsprites
-        
+
 
 class Player(pygame.sprite.Sprite):
     def __init__(self, x, y, w, h):
-        self.sprites = load_sprite_sheets("assets\playerskin\normal", 60, 60, True)
-        self.entity = pygame.image.load(join(FILE, PLAYER_RIGHT))
+        self.sprites = load_sprite_sheets(
+            join(PATH, "playerskin", "normal"), 60, 60, True
+        )
+        self.entity = pygame.image.load(
+            join(PATH, "playerskin", "normal", PLAYER_RIGHT)
+        )
         print(self.entity)
         self.xvel = 0
         self.yvel = 0
@@ -81,7 +90,7 @@ class Player(pygame.sprite.Sprite):
         self.mask = None
         self.pose = "right"
         self.fallcount = 0
-    
+
     def m_move(self, xdis, ydis):
         self.xpos += xdis
         self.ypos += ydis
@@ -107,23 +116,29 @@ class Player(pygame.sprite.Sprite):
 
     def meters_pixels(self, n):
         return self.entity.w
-    
+
     def keylink(self):
         keys = pygame.key.get_pressed()
         self.x_vel = 0
         if keys[pygame.K_LEFT] or keys[pygame.K_a]:
-            self.entity = pygame.image.load(join(FILE, PLAYER_LEFT))
+            self.entity = pygame.image.load(
+                join(PATH, "playerskin", "normal", PLAYER_LEFT)
+            )
             if self.xvel <= -MAXSPEED + AGILITY:
                 self.xvel = -MAXSPEED
             else:
                 self.xvel -= AGILITY
         elif keys[pygame.K_RIGHT] or keys[pygame.K_d]:
-            self.entity = pygame.image.load(join(FILE, PLAYER_RIGHT))
+            self.entity = pygame.image.load(
+                join(PATH, "playerskin", "normal", PLAYER_RIGHT)
+            )
             if self.xvel >= MAXSPEED - AGILITY:
                 self.xvel = MAXSPEED
             else:
                 self.xvel += AGILITY
-        if (keys[pygame.K_SPACE] or keys[pygame.K_UP] or keys[pygame.K_w]) and self.fallcount == 0:
+        if (
+            keys[pygame.K_SPACE] or keys[pygame.K_UP] or keys[pygame.K_w]
+        ) and self.fallcount == 0:
             self.yvel -= JUMP
 
     def loop(self, fps):
@@ -132,24 +147,25 @@ class Player(pygame.sprite.Sprite):
         else:
             self.fallcount += 1
         if self.fallcount != 0:
-            self.yvel += (self.fallcount / fps) * GRAVITY # gravity
+            self.yvel += (self.fallcount / fps) * GRAVITY  # gravity
         else:
             self.yvel = 0
         self.keylink()
         self.m_move(self.xvel, self.yvel)
-# friction
+        # friction
         if self.xvel > 0 + FRICTION / 2:
             self.xvel -= FRICTION
         elif self.xvel < 0 - FRICTION / 2:
             self.xvel += FRICTION
         else:
             self.xvel = 0
-    
+
     def draw(self, wd):
         wd.blit(self.entity, (self.xpos, self.ypos))
 
+
 def draw(wd, player, TILE):
-    tile_img = pygame.image.load(join(FILE, "assets", "Background", TILE))
+    tile_img = pygame.image.load(join(PATH, "Background", TILE))
     _, _, tile_width, tile_height = tile_img.get_rect()
     tile_pos = []
     for i in range(WIDTH // tile_width + 10):
@@ -158,9 +174,10 @@ def draw(wd, player, TILE):
             tile_pos.append(pos)
     for TILE in tile_pos:
         wd.blit(tile_img, TILE)
-    
+
     player.draw(wd)
     pygame.display.update()
+
 
 def main(wd):
     clock = pygame.time.Clock()
@@ -172,11 +189,12 @@ def main(wd):
             if event.type == pygame.QUIT:
                 run = False
                 break
-        
+
         player.loop(FPS)
         draw(wd, player, TILE)
     pygame.quit()
     quit()
+
 
 if __name__ == "__main__":
     main(wd)
