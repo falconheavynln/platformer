@@ -31,7 +31,7 @@ wd = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption(CAPTION)
 pygame.display.set_icon(pygame.image.load(join(PATH, ICON)))
 
-# test comment
+# test2 comment
 # animation
 # test colaboration
 
