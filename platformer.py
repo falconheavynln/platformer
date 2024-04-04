@@ -74,12 +74,8 @@ def load_sprite_sheets(path, width, height, direction=False):
 
 class Player(pygame.sprite.Sprite):
     def __init__(self, x, y, w, h):
-        self.sprites = load_sprite_sheets(
-            join(PATH, "playerskin", "normal"), 60, 60, True
-        )
-        self.entity = pygame.image.load(
-            join(PATH, "playerskin", "normal", PLAYER_RIGHT)
-        )
+        self.sprites = load_sprite_sheets(PATH, 60, 60, True)
+        self.entity = pygame.image.load(join(PATH, PLAYER_RIGHT))
         print(self.entity)
         self.xvel = 0
         self.yvel = 0
@@ -122,17 +118,13 @@ class Player(pygame.sprite.Sprite):
         keys = pygame.key.get_pressed()
         self.x_vel = 0
         if keys[pygame.K_LEFT] or keys[pygame.K_a]:
-            self.entity = pygame.image.load(
-                join(PATH, "playerskin", "normal", PLAYER_LEFT)
-            )
+            self.entity = pygame.image.load(join(PATH, PLAYER_LEFT))
             if self.xvel <= -MAXSPEED + AGILITY:
                 self.xvel = -MAXSPEED
             else:
                 self.xvel -= AGILITY
         elif keys[pygame.K_RIGHT] or keys[pygame.K_d]:
-            self.entity = pygame.image.load(
-                join(PATH, "playerskin", "normal", PLAYER_RIGHT)
-            )
+            self.entity = pygame.image.load(join(PATH, PLAYER_RIGHT))
             if self.xvel >= MAXSPEED - AGILITY:
                 self.xvel = MAXSPEED
             else:
@@ -166,7 +158,7 @@ class Player(pygame.sprite.Sprite):
 
 
 def draw(wd, player, TILE):
-    tile_img = pygame.image.load(join(PATH, "Background", TILE))
+    tile_img = pygame.image.load(join(PATH, TILE))
     _, _, tile_width, tile_height = tile_img.get_rect()
     tile_pos = []
     for i in range(WIDTH // tile_width + 10):
