@@ -6,13 +6,12 @@ from os.path import isfile, join
 pygame.init()
 
 CAPTION = "thing"
-COLOR = (57, 24, 0)
 WIDTH = 1500
 HEIGHT = 800
 FPS = 60
 
-MAXSPEED = 25
-AGILITY = 4.5
+MAXSPEED = 20
+AGILITY = 5
 JUMP = 25
 FRICTION = 4
 GRAVITY = 40
