@@ -12,14 +12,18 @@ HEIGHT = 800
 FPS = 60
 
 MSPEED = 20  # max ground speed
-AGILITY = 5
+AGILE = 5
 JUMP = 1.5
-FRICTION = 4
+FRICTION = 3
 GRAVITY = 20
 TERMINALVEL = 180  # max falling speed
 SCROLL_WIDTH = 400  # distance from side of screen to scroll x
 
-BLOCKS = [(60 * i, 660, 60, 60) for i in range(20)] + [(120, 480, 60, 60)]
+BLOCKS = [[i, 11, 1, 1] for i in range(20)] + [[2, 8, 1, 1], [4, 10, 1, 1]]
+
+for i in range(len(BLOCKS)):
+    for j in range(len(BLOCKS[i])):
+        BLOCKS[i][j] *= 60
 
 PATH = "assets"
 ICON = "earth_crust.png"
@@ -32,8 +36,8 @@ pygame.display.set_icon(pygame.image.load(join(PATH, ICON)))
 
 # use extra player movements if you have time
 
-# pose var combines direction and animcount,
-# be sure to use turn pose into the animcount
+# direction var combines direction and animcount,
+# be sure to use turn direction into the animcount
 
 # make a function for meters to pixels, the player
 # is 0.25 meters tall
@@ -48,7 +52,7 @@ def flip_image(sprites):
     return [pygame.transform.flip(sprite, True, False) for sprite in sprites]
 
 
-def load_sprite_sheets(path, width, height, direction=False):
+def load_sprite_sheets(path, width, height):
     images = [f for f in listdir(path) if isfile(join(path, f))]
     allsprites = {}
     for image in images:
@@ -59,12 +63,8 @@ def load_sprite_sheets(path, width, height, direction=False):
             rect = pygame.Rect(i * width, 0, width, height)
             surface.blit(spritesheet, (0, 0), rect)
             sprites.append(surface)
-        if direction:
-            allsprites[image.replace(".png", "") + "_right"] = sprites
-            allsprites[image.replace(".png", "") + "_left"] = flip_image(sprites)
-        else:
-            allsprites[image.replace(".png", "")] = sprites
-
+        allsprites[image.replace(".png", "") + "_right"] = sprites
+        allsprites[image.replace(".png", "") + "_left"] = flip_image(sprites)
     return allsprites
 
 
@@ -80,25 +80,11 @@ def load_block(w, h):
 class Player(pygame.sprite.Sprite):
     def __init__(self, x, y, w, h):
         super().__init__()
-        self.SPRITES = load_sprite_sheets(join(PATH, CHARACTER), 60, 60, True)
+        self.SPRITES = load_sprite_sheets(join(PATH, CHARACTER), 60, 60)
         self.rect = pygame.Rect(x, y, w, h)
         self.xvel, self.yvel, self.size = 0, 0, 60
-        self.mask, self.pose = None, "right"
+        self.mask, self.direction = None, "right"
         self.fallcount, self.jumpcount, self.animcount = 0, 0, 0
-
-    def loop(self, fps):
-        self.yvel += (self.fallcount / fps) * GRAVITY  # gravity
-        self.rect.x += self.xvel
-        self.rect.y += self.yvel
-        # friction
-        if self.xvel > 0 + FRICTION / 2:
-            self.xvel -= FRICTION
-        elif self.xvel < 0 - FRICTION / 2:
-            self.xvel += FRICTION
-        else:
-            self.xvel = 0
-        self.fallcount += 1
-        self.update_sprite()
 
     def update_sprite(self):
         sprite_sheet = "idle"
@@ -109,18 +95,34 @@ class Player(pygame.sprite.Sprite):
                 sprite_sheet = "double_jump"
         elif self.yvel > GRAVITY * 2:
             sprite_sheet = "fall"
-        if self.xvel != 0:
+        elif self.xvel != 0:
             sprite_sheet = "run"
-        sprite_sheet_name = sprite_sheet + "_" + self.pose
-        sprites = self.SPRITES[sprite_sheet_name]
-        sprite_index = (self.animcount // ANIM_DELAY) % len(sprites)
-        self.sprite = sprites[sprite_index]
+
+        sprites = self.SPRITES[sprite_sheet + "_" + self.direction]
+        self.sprite = sprites[(self.animcount // ANIM_DELAY) % len(sprites)]
         self.animcount += 1
+        self.update()
+
+    def update(self):
         self.rect = self.sprite.get_rect(topleft=(self.rect.x, self.rect.y))
         self.mask = pygame.mask.from_surface(self.sprite)
 
     def draw(self, wd, offset_x):
         wd.blit(self.sprite, (self.rect.x - offset_x, self.rect.y))
+
+    def loop(self, fps):
+        self.yvel += (self.fallcount / fps) * GRAVITY  # gravity
+        self.rect.x += self.xvel
+        self.rect.y += self.yvel
+        # friction
+        if self.xvel > FRICTION:
+            self.xvel -= FRICTION / 2
+        elif self.xvel < -FRICTION:
+            self.xvel += FRICTION / 2
+        else:
+            self.xvel = 0
+        self.fallcount += 1
+        self.update_sprite()
 
 
 class Object(pygame.sprite.Sprite):
@@ -145,29 +147,35 @@ class Block(Object):
 
 def keys(player, blocks):
     keys = pygame.key.get_pressed()
-    if keys[pygame.K_LEFT] or keys[pygame.K_a]:
-        if player.pose != "left":
-            player.pose = "left"
-            player.animcount = 0
-        player.xvel = (
-            -MSPEED if player.xvel <= -MSPEED + AGILITY else player.xvel - AGILITY
-        )
-    elif keys[pygame.K_RIGHT] or keys[pygame.K_d]:
-        if player.pose != "right":
-            player.pose = "right"
-            player.animcount = 0
-        player.xvel = (
-            MSPEED if player.xvel >= MSPEED - AGILITY else player.xvel + AGILITY
-        )
-    if (
-        (keys[pygame.K_SPACE] or keys[pygame.K_UP] or keys[pygame.K_w])
-        and player.fallcount == 1
-        and player.jumpcount < 2
+    collided = [horizontal_collision(player, blocks, i * MSPEED) for i in [-1, 1]]
+    if (keys[pygame.K_LEFT] or keys[pygame.K_a]) and not collided[0]:
+        if player.direction != "left":
+            player.direction, player.animcount = "left", 0
+        player.xvel = -MSPEED if player.xvel <= -MSPEED + AGILE else player.xvel - AGILE
+    elif (keys[pygame.K_RIGHT] or keys[pygame.K_d]) and not collided[1]:
+        if player.direction != "right":
+            player.direction, player.animcount = "right", 0
+        player.xvel = MSPEED if player.xvel >= MSPEED - AGILE else player.xvel + AGILE
+    elif collided[0] or collided[1]:
+        player.xvel = 0
+    elif (keys[pygame.K_SPACE] or keys[pygame.K_UP] or keys[pygame.K_w]) and (
+        player.fallcount == 1 and player.jumpcount < 2
     ):
         player.yvel = -GRAVITY * JUMP
         player.animcount, player.jumpcount = 0, player.jumpcount + 1
         player.fallcount = 0 if player.jumpcount == 1 else player.fallcount
     vertical_collision(player, blocks)
+
+
+def horizontal_collision(player, objects, dx):
+    player.rect.x += dx
+    player.update()
+    for object in objects:
+        if pygame.sprite.collide_mask(player, object):
+            player.rect.x -= dx
+            player.update()
+            return object
+    return None
 
 
 def vertical_collision(player, objects):
@@ -203,6 +211,13 @@ def draw(wd, player, TILE, objects, offset_x):
     pygame.display.update()
 
 
+def scroll(player, offset_x):
+    if (player.rect.right - offset_x >= WIDTH - SCROLL_WIDTH and player.xvel > 0) or (
+        (player.rect.left - offset_x <= SCROLL_WIDTH) and player.xvel < 0
+    ):
+        return offset_x + player.xvel
+
+
 def main(wd):
     clock = pygame.time.Clock()
     player = Player(530, 100, 50, 50)
@@ -221,11 +236,8 @@ def main(wd):
         player.loop(FPS)
         keys(player, blocks)
         draw(wd, player, TILE, blocks, offset_x)
+        offset_x = scroll(player, offset_x)
 
-        if (
-            player.rect.right - offset_x >= WIDTH - SCROLL_WIDTH and player.xvel > 0
-        ) or ((player.rect.left - offset_x <= SCROLL_WIDTH) and player.xvel < 0):
-            offset_x += player.xvel
     pygame.quit()
     quit()
 
