@@ -7,7 +7,7 @@ pygame.init()
 
 CAPTION = "thing"
 ANIM_DELAY = 7
-WIDTH = 1500
+WIDTH = 1000
 HEIGHT = 800
 FPS = 60
 
@@ -19,11 +19,16 @@ GRAVITY = 20
 TERMINALVEL = 180  # max falling speed
 SCROLL_WIDTH = 400  # distance from side of screen to scroll x
 
+# SPIKES = [[4, 8, 1, 1], [5, 8, 1, 1]]
 BLOCKS = [[i, 11, 1, 1] for i in range(20)] + [[2, 8, 1, 1], [4, 10, 1, 1]]
 
 for i in range(len(BLOCKS)):
-    for j in range(len(BLOCKS[i])):
+    for j in range(4):
         BLOCKS[i][j] *= 60
+
+# for i in range(len(SPIKES)):
+#     for j in range(4):
+#         SPIKES[i][j] *= 60
 
 PATH = "assets"
 ICON = "earth_crust.png"
@@ -52,7 +57,7 @@ def flip_image(sprites):
     return [pygame.transform.flip(sprite, True, False) for sprite in sprites]
 
 
-def load_sprite_sheets(path, width, height):
+def load_sprite_sheets(path, width, height, flip=False):
     images = [f for f in listdir(path) if isfile(join(path, f))]
     allsprites = {}
     for image in images:
@@ -63,8 +68,11 @@ def load_sprite_sheets(path, width, height):
             rect = pygame.Rect(i * width, 0, width, height)
             surface.blit(spritesheet, (0, 0), rect)
             sprites.append(surface)
-        allsprites[image.replace(".png", "") + "_right"] = sprites
-        allsprites[image.replace(".png", "") + "_left"] = flip_image(sprites)
+            # if flip:
+            allsprites[image.replace(".png", "") + "_right"] = sprites
+            allsprites[image.replace(".png", "") + "_left"] = flip_image(sprites)
+        # else:
+        #     allsprites[image.replace(".png", "")] = sprites
     return allsprites
 
 
@@ -80,7 +88,7 @@ def load_block(w, h):
 class Player(pygame.sprite.Sprite):
     def __init__(self, x, y, w, h):
         super().__init__()
-        self.SPRITES = load_sprite_sheets(join(PATH, CHARACTER), 60, 60)
+        self.SPRITES = load_sprite_sheets(join(PATH, CHARACTER), 60, 60, True)
         self.rect = pygame.Rect(x, y, w, h)
         self.xvel, self.yvel, self.size = 0, 0, 60
         self.mask, self.direction = None, "right"
@@ -121,6 +129,7 @@ class Player(pygame.sprite.Sprite):
             self.xvel += FRICTION / 2
         else:
             self.xvel = 0
+        print(self.xvel)
         self.fallcount += 1
         self.update_sprite()
 
@@ -143,6 +152,35 @@ class Block(Object):
         block = load_block(w, h)
         self.image.blit(block, (0, 0))
         self.mask = pygame.mask.from_surface(self.image)
+
+
+class Spike(Object):
+    def __init__(self, x, y, w, h):
+        super().__init__(x, y, w, h, "spike")
+        self.spike = load_sprite_sheets(join(PATH, "obstacles", "spike"), w, h)
+        self.image = self.spike["inside"]
+        self.mask = pygame.mask.from_surface(self.image[0])
+        self.animcount = 0
+        self.anim_name = "inside"
+
+    def inside(self):
+        self.anim_name = "inside"
+
+    def middle(self):
+        self.anim_name = "middle"
+
+    def out(self):
+        self.anim_name = "out"
+
+    def loop(self):
+        sprites = self.SPRITES[self.anim_name]
+        self.sprite = sprites[(self.animcount // ANIM_DELAY) % len(sprites)]
+        self.animcount += 1
+        self.rect = self.sprite.get_rect(topleft=(self.rect.x, self.rect.y))
+        self.mask = pygame.mask.from_surface(self.sprite)
+
+        if self.animation_count // ANIM_DELAY > len(sprites):
+            self.anim_name = 0
 
 
 def keys(player, blocks):
@@ -216,12 +254,14 @@ def scroll(player, offset_x):
         (player.rect.left - offset_x <= SCROLL_WIDTH) and player.xvel < 0
     ):
         return offset_x + player.xvel
+    return offset_x
 
 
 def main(wd):
     clock = pygame.time.Clock()
     player = Player(530, 100, 50, 50)
-    blocks = [Block(i[0], i[1], i[2], i[3]) for i in BLOCKS]
+    # spikes = [Spike(i[0], i[1], i[2], i[3]) for i in SPIKES]
+    blocks = [Block(j[0], j[1], j[2], j[3]) for j in BLOCKS]
     player.loop(FPS)
     offset_x = 0
 
