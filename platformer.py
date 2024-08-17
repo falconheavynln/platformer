@@ -129,7 +129,6 @@ class Player(pygame.sprite.Sprite):
             self.xvel += FRICTION / 2
         else:
             self.xvel = 0
-        print(self.xvel)
         self.fallcount += 1
         self.update_sprite()
 
@@ -184,8 +183,10 @@ class Spike(Object):
 
 
 def keys(player, blocks):
-    keys = pygame.key.get_pressed()
+    vertical_collision(player, blocks)
     collided = [horizontal_collision(player, blocks, i * MSPEED) for i in [-1, 1]]
+
+    keys = pygame.key.get_pressed()
     if (keys[pygame.K_LEFT] or keys[pygame.K_a]) and not collided[0]:
         if player.direction != "left":
             player.direction, player.animcount = "left", 0
@@ -196,13 +197,12 @@ def keys(player, blocks):
         player.xvel = MSPEED if player.xvel >= MSPEED - AGILE else player.xvel + AGILE
     elif collided[0] or collided[1]:
         player.xvel = 0
-    elif (keys[pygame.K_SPACE] or keys[pygame.K_UP] or keys[pygame.K_w]) and (
-        player.fallcount == 1 and player.jumpcount < 2
+    if (keys[pygame.K_SPACE] or keys[pygame.K_UP] or keys[pygame.K_w]) and (
+        (player.fallcount in [1, 2]) and player.jumpcount < 2
     ):
         player.yvel = -GRAVITY * JUMP
         player.animcount, player.jumpcount = 0, player.jumpcount + 1
         player.fallcount = 0 if player.jumpcount == 1 else player.fallcount
-    vertical_collision(player, blocks)
 
 
 def horizontal_collision(player, objects, dx):
