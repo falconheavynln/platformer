@@ -19,16 +19,16 @@ GRAVITY = 20
 TERMINALVEL = 180  # max falling speed
 SCROLL_WIDTH = 400  # distance from side of screen to scroll x
 
-# SPIKES = [[4, 8, 1, 1], [5, 8, 1, 1]]
+SPIKES = [[6, 10, 1, 1, "inside"], [7, 10, 1, 1, "out"]]
 BLOCKS = [[i, 11, 1, 1] for i in range(20)] + [[2, 8, 1, 1], [4, 10, 1, 1]]
 
 for i in range(len(BLOCKS)):
     for j in range(4):
         BLOCKS[i][j] *= 60
 
-# for i in range(len(SPIKES)):
-#     for j in range(4):
-#         SPIKES[i][j] *= 60
+for i in range(len(SPIKES)):
+    for j in range(4):
+        SPIKES[i][j] *= 60
 
 PATH = "assets"
 ICON = "earth_crust.png"
@@ -68,11 +68,11 @@ def load_sprite_sheets(path, width, height, flip=False):
             rect = pygame.Rect(i * width, 0, width, height)
             surface.blit(spritesheet, (0, 0), rect)
             sprites.append(surface)
-            # if flip:
+        if flip:
             allsprites[image.replace(".png", "") + "_right"] = sprites
             allsprites[image.replace(".png", "") + "_left"] = flip_image(sprites)
-        # else:
-        #     allsprites[image.replace(".png", "")] = sprites
+        else:
+            allsprites[image.replace(".png", "")] = sprites
     return allsprites
 
 
@@ -154,13 +154,13 @@ class Block(Object):
 
 
 class Spike(Object):
-    def __init__(self, x, y, w, h):
+    def __init__(self, x, y, w, h, pose):
         super().__init__(x, y, w, h, "spike")
         self.spike = load_sprite_sheets(join(PATH, "obstacles", "spike"), w, h)
-        self.image = self.spike["inside"]
-        self.mask = pygame.mask.from_surface(self.image[0])
+        self.image = self.spike[pose][0]
+        self.mask = pygame.mask.from_surface(self.image)
         self.animcount = 0
-        self.anim_name = "inside"
+        self.anim_name = pose
 
     def inside(self):
         self.anim_name = "inside"
@@ -172,14 +172,14 @@ class Spike(Object):
         self.anim_name = "out"
 
     def loop(self):
-        sprites = self.SPRITES[self.anim_name]
-        self.sprite = sprites[(self.animcount // ANIM_DELAY) % len(sprites)]
+        sprites = self.spike[self.anim_name]
+        self.image = sprites[(self.animcount // ANIM_DELAY) % len(sprites)]
         self.animcount += 1
-        self.rect = self.sprite.get_rect(topleft=(self.rect.x, self.rect.y))
-        self.mask = pygame.mask.from_surface(self.sprite)
+        self.rect = self.image.get_rect(topleft=(self.rect.x, self.rect.y))
+        self.mask = pygame.mask.from_surface(self.image)
 
-        if self.animation_count // ANIM_DELAY > len(sprites):
-            self.anim_name = 0
+        if self.animcount // ANIM_DELAY > len(sprites):
+            self.animcount = 0
 
 
 def keys(player, blocks):
@@ -208,12 +208,14 @@ def keys(player, blocks):
 def horizontal_collision(player, objects, dx):
     player.rect.x += dx
     player.update()
-    for object in objects:
-        if pygame.sprite.collide_mask(player, object):
-            player.rect.x -= dx
-            player.update()
-            return object
-    return None
+    collided = None
+    for obj in objects:
+        if pygame.sprite.collide_mask(player, obj):
+            collided = obj
+
+    player.rect.x -= dx
+    player.update()
+    return collided
 
 
 def vertical_collision(player, objects):
@@ -221,10 +223,12 @@ def vertical_collision(player, objects):
     for object in objects:
         if pygame.sprite.collide_mask(player, object):
             if player.yvel > 0:
-                player.rect.bottom = object.rect.top
+                player.rect.bottom = (
+                    object.rect.top
+                )  # moves player to top of rect, not top of mask
                 player.fallcount, player.yvel, player.jumpcount = 0, 0, 0
             elif player.yvel < 0:
-                player.rect.top = object.rect.bottom
+                player.rect.top = object.rect.bottom  # same here
                 player.count, player.yvel = 0, -player.yvel // 2
             collided_objects.append(object)
     return collided_objects
@@ -260,8 +264,9 @@ def scroll(player, offset_x):
 def main(wd):
     clock = pygame.time.Clock()
     player = Player(530, 100, 50, 50)
-    # spikes = [Spike(i[0], i[1], i[2], i[3]) for i in SPIKES]
+    spikes = [Spike(i[0], i[1], i[2], i[3], i[4]) for i in SPIKES]
     blocks = [Block(j[0], j[1], j[2], j[3]) for j in BLOCKS]
+    objects = spikes + blocks
     player.loop(FPS)
     offset_x = 0
 
@@ -274,8 +279,10 @@ def main(wd):
                 break
 
         player.loop(FPS)
+        for spike in spikes:
+            spike.loop()
         keys(player, blocks)
-        draw(wd, player, TILE, blocks, offset_x)
+        draw(wd, player, TILE, objects, offset_x)
         offset_x = scroll(player, offset_x)
 
     pygame.quit()
