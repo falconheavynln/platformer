@@ -258,7 +258,10 @@ def horizontal_collision(player, objects, dx):
 def vertical_collision(player, objects):
     collided_objects = []
     for obj in objects:
-        if pygame.sprite.collide_mask(player, obj):
+        if pygame.sprite.collide_mask(player, obj) and not (
+            obj.name == "spike"
+            and (player.rect.y + 59 == obj.rect.y or player.rect.y - 59 == obj.rect.y)
+        ):
             if player.yvel > 0:
                 player.rect.bottom = obj.rect.top  # moves player to top of RECT
                 player.fallcount, player.yvel, player.jumpcount = 0, 1, 0
