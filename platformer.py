@@ -17,9 +17,9 @@ JUMP = 1
 FRICTION = 4
 GRAVITY = 20
 TERMINALVEL = 180  # max falling speed
-SCROLL_WIDTH = 300  # distance from side of screen to scroll x
-RESP_BUFFER = 0.3  # secs before player goes back to start
-start_pos = [10, 10]
+SCROLL = [300, 200]  # distance from side of screen to scroll x
+RESP_BUFFER = 0  # secs before player goes back to start after dying
+start_pos = [7, 6]
 
 
 SPIKES = [[6, 10, 1, 1, ["out", 90]], [10, 8, 1, 1, ["out", 0]]]
@@ -138,15 +138,15 @@ class Player(pygame.sprite.Sprite):
         self.rect = self.sprite.get_rect(topleft=(self.rect.x, self.rect.y))
         self.mask = pygame.mask.from_surface(self.sprite)
 
-    def draw(self, wd, offset_x):
-        wd.blit(self.sprite, (self.rect.x - offset_x, self.rect.y))
+    def draw(self, wd, offset):
+        wd.blit(self.sprite, (self.rect.x - offset[0], self.rect.y - offset[1]))
 
     def respawn(self):
         self.rect.x, self.rect.y = start_pos[0], start_pos[1]
         self.xvel, self.yvel = 0, 0
         return 0
 
-    def loop(self, fps):
+    def loop(self, fps, offset):
         self.yvel += (self.fallcount / fps) * GRAVITY  # gravity
         self.rect.x += self.xvel
         self.rect.y += self.yvel  # yvel is 1 iff on ground
@@ -166,11 +166,11 @@ class Player(pygame.sprite.Sprite):
         if self.hit_count > fps * RESP_BUFFER + 2:
             self.hit_count = 0
             self.respawn()
-            return True
-        if self.rect.y >= HEIGHT + 200:
+            return [0, 0]
+        elif self.rect.y >= HEIGHT + 200:
             self.respawn()
-            return True
-        return False
+            return [0, 0]
+        return offset
 
 
 class Object(pygame.sprite.Sprite):
@@ -181,8 +181,8 @@ class Object(pygame.sprite.Sprite):
         self.w, self.h = w, h
         self.name = name
 
-    def draw(self, wd, offset_x):
-        wd.blit(self.image, (self.rect.x - offset_x, self.rect.y))
+    def draw(self, wd, offset):
+        wd.blit(self.image, (self.rect.x - offset[0], self.rect.y - offset[1]))
 
 
 class Block(Object):
@@ -216,8 +216,7 @@ class Spike(Object):
 def keys(player, objects):
     v_collide = vertical_collision(player, objects)
     h_collide = [horizontal_collision(player, objects, i * MSPEED) for i in [-1, 1]]
-    check = [h_collide + v_collide][0]
-    for obj in check:
+    for obj in [h_collide + v_collide][0]:
         if obj and obj.name == "spike":
             player.hit_count += 1
 
@@ -272,7 +271,7 @@ def vertical_collision(player, objects):
     return collided_objects
 
 
-def draw(wd, player, TILE, objects, offset_x):
+def draw(wd, player, TILE, objects, offset):
     # background
     tile_image = pygame.image.load(join(PATH, TILE))
     _, _, tile_width, tile_height = tile_image.get_rect()
@@ -285,18 +284,22 @@ def draw(wd, player, TILE, objects, offset_x):
         wd.blit(tile_image, TILE)
 
     for obj in objects:
-        obj.draw(wd, offset_x)
+        obj.draw(wd, offset)
 
-    player.draw(wd, offset_x)
+    player.draw(wd, offset)
     pygame.display.update()
 
 
-def scroll(player, offset_x):
-    if (player.rect.right - offset_x >= WIDTH - SCROLL_WIDTH and player.xvel > 0) or (
-        (player.rect.left - offset_x <= SCROLL_WIDTH) and player.xvel < 0
+def scroll(player, offset):
+    if (player.rect.right - offset[0] >= WIDTH - SCROLL[0] and player.xvel > 0) or (
+        (player.rect.left - offset[0] <= SCROLL[0]) and player.xvel < 0
     ):
-        return offset_x + player.xvel
-    return offset_x
+        offset[0] += player.xvel
+    if (player.rect.bottom - offset[1] >= HEIGHT - SCROLL[1] and player.yvel > 0) or (
+        (player.rect.top - offset[1] <= SCROLL[1]) and player.yvel < 0
+    ):
+        offset[1] += player.yvel
+    return offset
 
 
 def main(wd):
@@ -305,8 +308,8 @@ def main(wd):
     spikes = [Spike(i[0], i[1], i[2], i[3], i[4]) for i in SPIKES]
     blocks = [Block(j[0], j[1], j[2], j[3]) for j in BLOCKS]
     objects = spikes + blocks
-    player.loop(FPS)
-    offset_x = 0
+    offset = [0, 0]  # offset amount up, left
+    player.loop(FPS, offset)
 
     run = True
     while run:
@@ -316,12 +319,12 @@ def main(wd):
                 run = False
                 break
 
-        offset_x = 0 if player.loop(FPS) else offset_x
+        offset = player.loop(FPS, offset)
         for spike in spikes:
             spike.loop()
         keys(player, objects)
-        draw(wd, player, TILE, objects, offset_x)
-        offset_x = scroll(player, offset_x)
+        draw(wd, player, TILE, objects, offset)
+        offset = scroll(player, offset)
 
     pygame.quit()
     quit()
