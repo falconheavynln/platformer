@@ -17,7 +17,7 @@ JUMP = 1
 FRICTION = 4
 GRAVITY = 20
 TERMINALVEL = 180  # max falling speed
-SCROLL = [300, 200]  # distance from side of screen to scroll x
+SCROLL = [300, 200]  # distance from side of screen to scroll x, y
 RESP_BUFFER = 0  # secs before player goes back to start after dying
 start_pos = [7, 6]
 
