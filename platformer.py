@@ -21,28 +21,32 @@ SCROLL = [300, 200]  # distance from side of screen to scroll x, y
 RESP_BUFFER = 0  # secs before player goes back to start after dying
 start_pos = [7, 6]
 
-
-SPIKES = [[6, 10, 1, 1, ["out", 90]], [10, 8, 1, 1, ["out", 0]]]
-BLOCKS = [
-    [2, 8, 1, 1],
-    [4, 6, 1, 1],
-    [4, 10, 1, 1],
-    [7, 10, 1, 1],
-    [10, 9, 1, 1],
-    [10, 11, 1, 1],
+# [x pos, y pos, width, height, [ID. first is always type of obj]]
+LEVELS = [
+    [
+        [6, 10, 1, 1, ["spike", "out", 90]],
+        [10, 8, 1, 1, ["spike", "out", 0]],
+        [2, 8, 1, 1, ["block"]],
+        [4, 6, 1, 1, ["block"]],
+        [4, 10, 1, 1, ["block"]],
+        [7, 10, 1, 1, ["block"]],
+        [10, 9, 1, 1, ["block"]],
+        [10, 11, 1, 1, ["block"]],
+    ],
+    [
+        [6, 10, 1, 1, ["spike", "inside", 90]],
+        [10, 8, 1, 1, ["spike", "inside", 0]],
+        [2, 8, 1, 1, ["block"]],
+        [4, 6, 1, 1, ["block"]],
+        [4, 10, 1, 1, ["block"]],
+        [7, 10, 1, 1, ["block"]],
+        [10, 9, 1, 1, ["block"]],
+        [10, 11, 1, 1, ["block"]],
+    ],
 ]
-
-for i in range(len(BLOCKS)):
-    for j in range(4):
-        BLOCKS[i][j] *= 60
-
-for i in range(len(SPIKES)):
-    for j in range(4):
-        SPIKES[i][j] *= 60
 
 for i in range(len(start_pos)):
     start_pos[i] *= 60
-
 
 PATH = "assets"
 ICON = "earth_crust.png"
@@ -305,9 +309,26 @@ def scroll(player, offset):
 def main(wd):
     clock = pygame.time.Clock()
     player = Player(start_pos[0], start_pos[1], 60, 60)
-    spikes = [Spike(i[0], i[1], i[2], i[3], i[4]) for i in SPIKES]
-    blocks = [Block(j[0], j[1], j[2], j[3]) for j in BLOCKS]
-    objects = spikes + blocks
+    for level_index in range(len(LEVELS)):
+        for obj_index in range(len(LEVELS[i])):
+            obj_info = LEVELS[level_index][obj_index]
+            if LEVELS[level_index][obj_index][4][0] == "spike":
+                LEVELS[level_index][obj_index] = Spike(
+                    obj_info[0] * 60,
+                    obj_info[1] * 60,
+                    obj_info[2] * 60,
+                    obj_info[3] * 60,
+                    obj_info[4][1:],
+                )
+            elif LEVELS[level_index][obj_index][4][0] == "block":
+                LEVELS[level_index][obj_index] = Block(
+                    obj_info[0] * 60,
+                    obj_info[1] * 60,
+                    obj_info[2] * 60,
+                    obj_info[3] * 60,
+                )
+
+    level = 2
     offset = [0, 0]  # offset amount up, left
     player.loop(FPS, offset)
 
@@ -320,10 +341,11 @@ def main(wd):
                 break
 
         offset = player.loop(FPS, offset)
-        for spike in spikes:
-            spike.loop()
-        keys(player, objects)
-        draw(wd, player, TILE, objects, offset)
+        for obj in LEVELS[level - 1]:
+            if obj.name == "spike":
+                obj.loop()
+        keys(player, LEVELS[level - 1])
+        draw(wd, player, TILE, LEVELS[level - 1], offset)
         offset = scroll(player, offset)
 
     pygame.quit()
