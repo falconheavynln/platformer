@@ -1,5 +1,6 @@
 import pygame
 
+from math import pi
 from os import listdir
 from os.path import isfile, join
 
@@ -23,11 +24,11 @@ RESP_BUFFER = 0.2  # secs before player goes back to start after dying
 # [x pos, y pos, width, height, [ID. first is always type of obj]]
 levels = [
     [
-        [600, 480],
+        [10, 6],
         [10, 9, 1, 2, ["block"]],
     ],
     [
-        [420, 360],
+        [7, 6],
         [5, 9, 1, 1, ["spike", 0]],
         [10, 8, 1, 1, ["spike", 0]],
         [2, 8, 1, 1, ["block"]],
@@ -39,7 +40,7 @@ levels = [
         [4, 5, 1, 1, ["goal"]],
     ],
     [
-        [420, 360],
+        [7, 6],
         [6, 10, 1, 1, ["spike", 90]],
         [10, 8, 1, 1, ["spike", 0]],
         [2, 8, 1, 1, ["block"]],
@@ -122,6 +123,7 @@ class Player(pygame.sprite.Sprite):
         self.fallcount, self.animcount = 0, 0
         self.hit_count = 0
         self.start = start
+        self.angle = 0
 
     def update_sprite(self):
         sprite_sheet = "idle"
@@ -330,32 +332,35 @@ def scroll(player, offset):
 def process_levels(levels):
     start_pos = []
     for level_index in range(len(levels)):
-        start_pos.append(levels[level_index][0])
-        for obj_index in range(len(levels[level_index]) - 1):
-            obj_info = levels[level_index][1:][obj_index]
-            if obj_info[4][0] == "spike":
-                levels[level_index][obj_index] = Spike(
-                    obj_info[0] * 60,
-                    obj_info[1] * 60,
-                    obj_info[2] * 60,
-                    obj_info[3] * 60,
-                    obj_info[4][1],
-                )
-            elif obj_info[4][0] == "block":
-                levels[level_index][obj_index] = Block(
-                    obj_info[0] * 60,
-                    obj_info[1] * 60,
-                    obj_info[2] * 60,
-                    obj_info[3] * 60,
-                )
-            elif obj_info[4][0] == "goal":
-                levels[level_index][obj_index] = Goal(
-                    obj_info[0] * 60,
-                    obj_info[1] * 60,
-                    obj_info[2] * 60,
-                    obj_info[3] * 60,
-                )
-        levels[level_index] = levels[level_index][:-1]
+        for obj_index in range(len(levels[level_index])):
+            if obj_index == 0:
+                start_pos.append([(60 * levels[level_index][0][i]) for i in [0, 1]])
+            else:
+                obj_info = levels[level_index][obj_index]
+                print(obj_info)
+                if obj_info[4][0] == "spike":
+                    levels[level_index][obj_index] = Spike(
+                        obj_info[0] * 60,
+                        obj_info[1] * 60,
+                        obj_info[2] * 60,
+                        obj_info[3] * 60,
+                        obj_info[4][1],
+                    )
+                elif obj_info[4][0] == "block":
+                    levels[level_index][obj_index] = Block(
+                        obj_info[0] * 60,
+                        obj_info[1] * 60,
+                        obj_info[2] * 60,
+                        obj_info[3] * 60,
+                    )
+                elif obj_info[4][0] == "goal":
+                    levels[level_index][obj_index] = Goal(
+                        obj_info[0] * 60,
+                        obj_info[1] * 60,
+                        obj_info[2] * 60,
+                        obj_info[3] * 60,
+                    )
+        levels[level_index] = levels[level_index][1:]
     return levels, start_pos
 
 
