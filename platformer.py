@@ -5,7 +5,7 @@ from os.path import isfile, join
 
 pygame.init()
 
-CAPTION = "thing"
+CAPTION = "monochrome"
 ANIM_DELAY = 7
 WIDTH = 1000
 HEIGHT = 800
@@ -19,11 +19,15 @@ GRAVITY = 20
 TERMINALVEL = 180  # max falling speed
 SCROLL = [300, 200]  # distance from side of screen to scroll x, y
 RESP_BUFFER = 0.2  # secs before player goes back to start after dying
-start_pos = [7, 6]
 
 # [x pos, y pos, width, height, [ID. first is always type of obj]]
 levels = [
     [
+        [600, 480],
+        [10, 9, 1, 2, ["block"]],
+    ],
+    [
+        [420, 360],
         [5, 9, 1, 1, ["spike", 0]],
         [10, 8, 1, 1, ["spike", 0]],
         [2, 8, 1, 1, ["block"]],
@@ -35,6 +39,7 @@ levels = [
         [4, 5, 1, 1, ["goal"]],
     ],
     [
+        [420, 360],
         [6, 10, 1, 1, ["spike", 90]],
         [10, 8, 1, 1, ["spike", 0]],
         [2, 8, 1, 1, ["block"]],
@@ -45,9 +50,6 @@ levels = [
         [10, 11, 1, 1, ["block"]],
     ],
 ]
-
-for i in range(len(start_pos)):
-    start_pos[i] *= 60
 
 PATH = "assets"
 ICON = "earth_crust.png"
@@ -111,14 +113,15 @@ def load_block(w, h):
 
 
 class Player(pygame.sprite.Sprite):
-    def __init__(self, x, y, w, h):
+    def __init__(self, start, w, h):
         super().__init__()
         self.SPRITES = load_sprite_sheets(join(PATH, CHARACTER), w, h, True)
-        self.rect = pygame.Rect(x, y, w, h)
+        self.rect = pygame.Rect(start[0][0], start[0][1], w, h)
         self.xvel, self.yvel, self.size = 0, 0, w
         self.mask, self.direction = None, "right"
         self.fallcount, self.animcount = 0, 0
         self.hit_count = 0
+        self.start = start
 
     def update_sprite(self):
         sprite_sheet = "idle"
@@ -143,12 +146,12 @@ class Player(pygame.sprite.Sprite):
     def draw(self, wd, offset):
         wd.blit(self.sprite, (self.rect.x - offset[0], self.rect.y - offset[1]))
 
-    def respawn(self):
-        self.rect.x, self.rect.y = start_pos[0], start_pos[1]
+    def respawn(self, level):
+        self.rect.x, self.rect.y = self.start[level - 1][0], self.start[level - 1][1]
         self.xvel, self.yvel = 0, 0
         return 0
 
-    def loop(self, fps, offset):
+    def loop(self, fps, offset, level):
         self.yvel += (self.fallcount / fps) * GRAVITY  # gravity
         self.rect.x += self.xvel
         self.rect.y += self.yvel  # yvel is 1 iff on ground
@@ -167,10 +170,10 @@ class Player(pygame.sprite.Sprite):
             self.hit_count += 1
         if self.hit_count > fps * RESP_BUFFER + 2:
             self.hit_count = 0
-            self.respawn()
+            self.respawn(level)
             return [0, 0]
         elif self.rect.y >= HEIGHT + 200:
-            self.respawn()
+            self.respawn(level)
             return [0, 0]
         return offset
 
@@ -325,9 +328,11 @@ def scroll(player, offset):
 
 
 def process_levels(levels):
+    start_pos = []
     for level_index in range(len(levels)):
-        for obj_index in range(len(levels[level_index])):
-            obj_info = levels[level_index][obj_index]
+        start_pos.append(levels[level_index][0])
+        for obj_index in range(len(levels[level_index]) - 1):
+            obj_info = levels[level_index][1:][obj_index]
             if obj_info[4][0] == "spike":
                 levels[level_index][obj_index] = Spike(
                     obj_info[0] * 60,
@@ -350,17 +355,18 @@ def process_levels(levels):
                     obj_info[2] * 60,
                     obj_info[3] * 60,
                 )
-    return levels
+        levels[level_index] = levels[level_index][:-1]
+    return levels, start_pos
 
 
 def main(wd, levels):
     clock = pygame.time.Clock()
-    player = Player(start_pos[0], start_pos[1], 60, 60)
-    levels = process_levels(levels)
+    levels, start_pos = process_levels(levels)
+    player = Player(start_pos, 60, 60)
 
     level = 1
     offset = [0, 0]  # offset amount up, left
-    player.loop(FPS, offset)
+    player.loop(FPS, offset, level)
 
     run = True
     while run:
@@ -371,7 +377,7 @@ def main(wd, levels):
                 break
 
         leveltile = join("background", TILES[level - 1])
-        offset = player.loop(FPS, offset)
+        offset = player.loop(FPS, offset, level)
         for obj in levels[level - 1]:
             if obj.name == "spike":
                 obj.loop()
