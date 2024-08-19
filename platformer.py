@@ -18,24 +18,25 @@ FRICTION = 4
 GRAVITY = 20
 TERMINALVEL = 180  # max falling speed
 SCROLL = [300, 200]  # distance from side of screen to scroll x, y
-RESP_BUFFER = 0  # secs before player goes back to start after dying
+RESP_BUFFER = 0.2  # secs before player goes back to start after dying
 start_pos = [7, 6]
 
 # [x pos, y pos, width, height, [ID. first is always type of obj]]
 levels = [
     [
-        [6, 10, 1, 1, ["spike", "out", 90]],
-        [10, 8, 1, 1, ["spike", "out", 0]],
+        [5, 9, 1, 1, ["spike", 0]],
+        [10, 8, 1, 1, ["spike", 0]],
         [2, 8, 1, 1, ["block"]],
         [4, 6, 1, 1, ["block"]],
         [4, 10, 3, 4, ["block"]],
         [7, 10, 1, 1, ["block"]],
         [10, 9, 1, 1, ["block"]],
         [10, 11, 1, 1, ["block"]],
+        [4, 5, 1, 1, ["goal"]],
     ],
     [
-        [6, 10, 1, 1, ["spike", "inside", 90]],
-        [10, 8, 1, 1, ["spike", "inside", 0]],
+        [6, 10, 1, 1, ["spike", 90]],
+        [10, 8, 1, 1, ["spike", 0]],
         [2, 8, 1, 1, ["block"]],
         [4, 6, 1, 1, ["block"]],
         [4, 10, 1, 1, ["block"]],
@@ -188,23 +189,23 @@ class Object(pygame.sprite.Sprite):
 
 class Block(Object):
     def __init__(self, x, y, w, h):
-        super().__init__(x, y, w, h)
+        super().__init__(x, y, w, h, "block")
         block = load_block(w, h)
         self.image.blit(block, (0, 0))
         self.mask = pygame.mask.from_surface(self.image)
 
 
 class Spike(Object):
-    def __init__(self, x, y, w, h, pose):
+    def __init__(self, x, y, w, h, angle):
         super().__init__(x, y, w, h, "spike")
-        self.spike = load_sprite_sheets(join(PATH, "obstacles", "spike"), w, h)
-        self.image = self.spike[pose[0]][0]
+        self.spike = load_sprite_sheets(join(PATH, "objects"), w, h)
+        self.image = self.spike["spike"][0]
         self.mask = pygame.mask.from_surface(self.image)
         self.animcount = 0
-        self.anim_name = pose
+        self.angle = angle
 
     def loop(self):
-        sprites = rotate_image(self.spike[self.anim_name[0]], self.anim_name[1])
+        sprites = rotate_image(self.spike["spike"], self.angle)
         self.image = sprites[(self.animcount // ANIM_DELAY) % len(sprites)]
         self.animcount += 1
         self.rect = self.image.get_rect(topleft=(self.rect.x, self.rect.y))
@@ -214,12 +215,34 @@ class Spike(Object):
             self.animcount = 0
 
 
+class Goal(Object):
+    def __init__(self, x, y, w, h):
+        super().__init__(x, y, w, h, "goal")
+        self.goal = load_sprite_sheets(join(PATH, "objects"), w, h)
+        self.image = self.goal["goal"][0]
+        self.mask = pygame.mask.from_surface(self.image)
+        self.animcount = 0
+
+    def loop(self):
+        self.image = self.image[(self.animcount // ANIM_DELAY) % len(self.image)]
+        self.animcount += 1
+        self.rect = self.image.get_rect(topleft=(self.rect.x, self.rect.y))
+        self.mask = pygame.mask.from_surface(self.image)
+
+        if self.animcount // ANIM_DELAY > len(self.image):
+            self.animcount = 0
+
+
 def keys(player, objects):
+    leveled_up = False
     v_collide = vertical_collision(player, objects)
     h_collide = [horizontal_collision(player, objects, i * MSPEED) for i in [-1, 1]]
     for obj in [h_collide + v_collide][0]:
         if obj and obj.name == "spike":
             player.hit_count += 1
+        elif obj and obj.name == "goal":
+            leveled_up = True
+            player.respawn()
 
     keys = pygame.key.get_pressed()
     if (keys[pygame.K_LEFT] or keys[pygame.K_a]) and not h_collide[0]:
@@ -237,6 +260,7 @@ def keys(player, objects):
     ) and player.fallcount == 0:
         player.yvel = -GRAVITY * JUMP
         player.animcount, player.fallcount = 0, 0
+    return leveled_up
 
 
 def horizontal_collision(player, objects, dx):
@@ -302,18 +326,25 @@ def scroll(player, offset):
 
 def process_levels(levels):
     for level_index in range(len(levels)):
-        for obj_index in range(len(levels[i])):
+        for obj_index in range(len(levels[level_index])):
             obj_info = levels[level_index][obj_index]
-            if levels[level_index][obj_index][4][0] == "spike":
+            if obj_info[4][0] == "spike":
                 levels[level_index][obj_index] = Spike(
                     obj_info[0] * 60,
                     obj_info[1] * 60,
                     obj_info[2] * 60,
                     obj_info[3] * 60,
-                    obj_info[4][1:],
+                    obj_info[4][1],
                 )
-            elif levels[level_index][obj_index][4][0] == "block":
+            elif obj_info[4][0] == "block":
                 levels[level_index][obj_index] = Block(
+                    obj_info[0] * 60,
+                    obj_info[1] * 60,
+                    obj_info[2] * 60,
+                    obj_info[3] * 60,
+                )
+            elif obj_info[4][0] == "goal":
+                levels[level_index][obj_index] = Goal(
                     obj_info[0] * 60,
                     obj_info[1] * 60,
                     obj_info[2] * 60,
@@ -328,7 +359,6 @@ def main(wd, levels):
     levels = process_levels(levels)
 
     level = 1
-    leveltile = join("background", TILES[level - 1])
     offset = [0, 0]  # offset amount up, left
     player.loop(FPS, offset)
 
@@ -340,11 +370,13 @@ def main(wd, levels):
                 run = False
                 break
 
+        leveltile = join("background", TILES[level - 1])
         offset = player.loop(FPS, offset)
         for obj in levels[level - 1]:
             if obj.name == "spike":
                 obj.loop()
-        keys(player, levels[level - 1])
+        if keys(player, levels[level - 1]):
+            level += 1
         draw(wd, player, leveltile, levels[level - 1], offset)
         offset = scroll(player, offset)
 
