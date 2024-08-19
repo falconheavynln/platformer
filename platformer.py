@@ -22,13 +22,13 @@ RESP_BUFFER = 0  # secs before player goes back to start after dying
 start_pos = [7, 6]
 
 # [x pos, y pos, width, height, [ID. first is always type of obj]]
-LEVELS = [
+levels = [
     [
         [6, 10, 1, 1, ["spike", "out", 90]],
         [10, 8, 1, 1, ["spike", "out", 0]],
         [2, 8, 1, 1, ["block"]],
         [4, 6, 1, 1, ["block"]],
-        [4, 10, 1, 1, ["block"]],
+        [4, 10, 3, 4, ["block"]],
         [7, 10, 1, 1, ["block"]],
         [10, 9, 1, 1, ["block"]],
         [10, 11, 1, 1, ["block"]],
@@ -50,7 +50,7 @@ for i in range(len(start_pos)):
 
 PATH = "assets"
 ICON = "earth_crust.png"
-TILE = "bg_tile_lvl1.png"
+TILES = [f"bg_tile_lvl{i + 1}.png" for i in range(2)]
 CHARACTER = "square"
 
 wd = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -101,7 +101,7 @@ def load_sprite_sheets(path, width, height, flip=False):
 
 
 def load_block(w, h):
-    path = join(PATH, "terrain", "block.png")
+    path = join(PATH, "terrain", f"block{w//60}x{h//60}.png")
     image = pygame.image.load(path).convert_alpha()
     surface = pygame.Surface((w, h), pygame.SRCALPHA, 32)
     rect = pygame.Rect(0, 0, w, h)  # w, h is dimensions
@@ -112,11 +112,11 @@ def load_block(w, h):
 class Player(pygame.sprite.Sprite):
     def __init__(self, x, y, w, h):
         super().__init__()
-        self.SPRITES = load_sprite_sheets(join(PATH, CHARACTER), 60, 60, True)
+        self.SPRITES = load_sprite_sheets(join(PATH, CHARACTER), w, h, True)
         self.rect = pygame.Rect(x, y, w, h)
-        self.xvel, self.yvel, self.size = 0, 0, 60
+        self.xvel, self.yvel, self.size = 0, 0, w
         self.mask, self.direction = None, "right"
-        self.fallcount, self.jumpcount, self.animcount = 0, 0, 0
+        self.fallcount, self.animcount = 0, 0
         self.hit_count = 0
 
     def update_sprite(self):
@@ -124,10 +124,7 @@ class Player(pygame.sprite.Sprite):
         if self.hit_count:
             sprite_sheet = "hit"
         elif self.yvel < 0:
-            if self.jumpcount == 1:
-                sprite_sheet = "jump"
-            elif self.jumpcount == 2:
-                sprite_sheet = "double_jump"
+            sprite_sheet = "jump"
         elif self.yvel > GRAVITY * 2:
             sprite_sheet = "fall"
         elif self.xvel != 0:
@@ -236,13 +233,10 @@ def keys(player, objects):
     elif h_collide[0] or h_collide[1]:
         player.xvel = 0
     if (
-        (keys[pygame.K_SPACE] or keys[pygame.K_UP] or keys[pygame.K_w])
-        and player.fallcount == 0
-        and player.jumpcount < 2
-    ):
+        keys[pygame.K_SPACE] or keys[pygame.K_UP] or keys[pygame.K_w]
+    ) and player.fallcount == 0:
         player.yvel = -GRAVITY * JUMP
-        player.animcount, player.jumpcount = 0, player.jumpcount + 1
-        player.fallcount = 0 if player.jumpcount == 1 else player.fallcount
+        player.animcount, player.fallcount = 0, 0
 
 
 def horizontal_collision(player, objects, dx):
@@ -267,7 +261,7 @@ def vertical_collision(player, objects):
         ):
             if player.yvel > 0:
                 player.rect.bottom = obj.rect.top  # moves player to top of RECT
-                player.fallcount, player.yvel, player.jumpcount = 0, 1, 0
+                player.fallcount, player.yvel = 0, 1
             elif player.yvel < 0:
                 player.rect.top = obj.rect.bottom  # not top of mask
                 player.yvel = -player.yvel // 2
@@ -306,29 +300,35 @@ def scroll(player, offset):
     return offset
 
 
-def main(wd):
-    clock = pygame.time.Clock()
-    player = Player(start_pos[0], start_pos[1], 60, 60)
-    for level_index in range(len(LEVELS)):
-        for obj_index in range(len(LEVELS[i])):
-            obj_info = LEVELS[level_index][obj_index]
-            if LEVELS[level_index][obj_index][4][0] == "spike":
-                LEVELS[level_index][obj_index] = Spike(
+def process_levels(levels):
+    for level_index in range(len(levels)):
+        for obj_index in range(len(levels[i])):
+            obj_info = levels[level_index][obj_index]
+            if levels[level_index][obj_index][4][0] == "spike":
+                levels[level_index][obj_index] = Spike(
                     obj_info[0] * 60,
                     obj_info[1] * 60,
                     obj_info[2] * 60,
                     obj_info[3] * 60,
                     obj_info[4][1:],
                 )
-            elif LEVELS[level_index][obj_index][4][0] == "block":
-                LEVELS[level_index][obj_index] = Block(
+            elif levels[level_index][obj_index][4][0] == "block":
+                levels[level_index][obj_index] = Block(
                     obj_info[0] * 60,
                     obj_info[1] * 60,
                     obj_info[2] * 60,
                     obj_info[3] * 60,
                 )
+    return levels
 
-    level = 2
+
+def main(wd, levels):
+    clock = pygame.time.Clock()
+    player = Player(start_pos[0], start_pos[1], 60, 60)
+    levels = process_levels(levels)
+
+    level = 1
+    leveltile = join("background", TILES[level - 1])
     offset = [0, 0]  # offset amount up, left
     player.loop(FPS, offset)
 
@@ -341,11 +341,11 @@ def main(wd):
                 break
 
         offset = player.loop(FPS, offset)
-        for obj in LEVELS[level - 1]:
+        for obj in levels[level - 1]:
             if obj.name == "spike":
                 obj.loop()
-        keys(player, LEVELS[level - 1])
-        draw(wd, player, TILE, LEVELS[level - 1], offset)
+        keys(player, levels[level - 1])
+        draw(wd, player, leveltile, levels[level - 1], offset)
         offset = scroll(player, offset)
 
     pygame.quit()
@@ -353,4 +353,4 @@ def main(wd):
 
 
 if __name__ == "__main__":
-    main(wd)
+    main(wd, levels)
