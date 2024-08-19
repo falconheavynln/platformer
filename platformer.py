@@ -54,7 +54,7 @@ levels = [
 
 PATH = "assets"
 ICON = "earth_crust.png"
-TILES = [f"bg_tile_lvl{i + 1}.png" for i in range(2)]
+TILES = [f"bg_tile_lvl{i + 1}.png" for i in range(4)]
 CHARACTER = "square"
 
 wd = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -123,7 +123,6 @@ class Player(pygame.sprite.Sprite):
         self.fallcount, self.animcount = 0, 0
         self.hit_count = 0
         self.start = start
-        self.angle = 0
 
     def update_sprite(self):
         sprite_sheet = "idle"
