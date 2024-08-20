@@ -1,6 +1,5 @@
 import pygame
 
-from math import pi
 from os import listdir
 from os.path import isfile, join
 
@@ -20,12 +19,45 @@ GRAVITY = 20
 TERMINALVEL = 180  # max falling speed
 SCROLL = [300, 200]  # distance from side of screen to scroll x, y
 RESP_BUFFER = 0.2  # secs before player goes back to start after dying
+BOUNCE_STRENGTH = 25  # amount bouncepads bounce
 
 # [x pos, y pos, width, height, [ID. first is always type of obj]]
 levels = [
     [
         [10, 6],
         [10, 9, 1, 2, ["block"]],
+        [11, 10, 1, 1, ["block"]],
+        [14, 10, 3, 4, ["block"]],
+        [14, 10, 3, 4, ["block"]],
+        [17, 9, 3, 2, ["block"]],
+        [17, 11, 2, 2, ["block"]],
+        [9, 3, 4, 3, ["block"]],
+        [19, 11, 2, 1, ["block"]],
+        [17, 2, 2, 3, ["block"]],
+        [24, 10, 1, 1, ["block"]],
+        [24, 11, 1, 1, ["block"]],
+        [24, 12, 1, 1, ["block"]],
+        [24, 13, 1, 1, ["block"]],
+        [24, 14, 1, 1, ["block"]],
+        [26, 8, 1, 1, ["block"]],
+        [26, 5, 2, 1, ["block"]],
+        [26, 2, 2, 1, ["block"]],
+        [25, 3, 1, 2, ["block"]],
+        [28, 3, 1, 2, ["block"]],
+        [30, 11, 2, 2, ["block"]],
+        [32, 11, 2, 2, ["block"]],
+        [34, 11, 2, 2, ["block"]],
+        [36, 11, 2, 2, ["block"]],
+        [31, 9, 2, 2, ["block"]],
+        [35, 9.5, 2, 2, ["block"]],
+        [40, 12, 1, 1, ["block"]],
+        [43, 11, 1, 1, ["block"]],
+        [44, 9, 1, 1, ["block"]],
+        [43, 7, 1, 1, ["block"]],
+        [37, 5, 4, 2, ["block"]],
+        [32, 4, 2, 1, ["block"]],
+        [22, 2, 1, 2, ["block"]],
+        [9, 2, 1, 1, ["goal"]],
     ],
     [
         [7, 6],
@@ -184,7 +216,6 @@ class Object(pygame.sprite.Sprite):
         super().__init__()
         self.rect = pygame.Rect(x, y, w, h)
         self.image = pygame.Surface((w, h), pygame.SRCALPHA)
-        self.w, self.h = w, h
         self.name = name
 
     def draw(self, wd, offset):
@@ -202,20 +233,33 @@ class Block(Object):
 class Spike(Object):
     def __init__(self, x, y, w, h, angle):
         super().__init__(x, y, w, h, "spike")
-        self.spike = load_sprite_sheets(join(PATH, "objects"), w, h)
-        self.image = self.spike["spike"][0]
+        self.angle = angle
+        self.image = rotate_image(
+            [load_sprite_sheets(join(PATH, "objects"), w, h)["spike"][0]], self.angle
+        )[0]
         self.mask = pygame.mask.from_surface(self.image)
         self.animcount = 0
-        self.angle = angle
 
     def loop(self):
-        sprites = rotate_image(self.spike["spike"], self.angle)
-        self.image = sprites[(self.animcount // ANIM_DELAY) % len(sprites)]
         self.animcount += 1
         self.rect = self.image.get_rect(topleft=(self.rect.x, self.rect.y))
         self.mask = pygame.mask.from_surface(self.image)
 
-        if self.animcount // ANIM_DELAY > len(sprites):
+
+class Bouncepad(Object):
+    def __init__(self, x, y, w, h, angle):
+        super().__init__(x, y, w, h, "bouncepad")
+        self.sprites = rotate_image(
+            load_sprite_sheets(join(PATH, "objects"), w, h)["bouncepad"], angle
+        )
+        self.image = self.sprites[2]
+        self.mask = pygame.mask.from_surface(self.image)
+        self.animcount = 0
+
+    def loop(self):
+        self.image = self.sprites[(self.animcount // 2) % len(self.sprites)]
+        self.animcount += 1
+        if self.animcount // 2 > len(self.sprites):
             self.animcount = 0
 
 
@@ -228,25 +272,23 @@ class Goal(Object):
         self.animcount = 0
 
     def loop(self):
-        self.image = self.image[(self.animcount // ANIM_DELAY) % len(self.image)]
-        self.animcount += 1
         self.rect = self.image.get_rect(topleft=(self.rect.x, self.rect.y))
         self.mask = pygame.mask.from_surface(self.image)
 
-        if self.animcount // ANIM_DELAY > len(self.image):
-            self.animcount = 0
 
-
-def keys(player, objects):
-    leveled_up = False
+def keys(player, objects, level, bounced):
     v_collide = vertical_collision(player, objects)
     h_collide = [horizontal_collision(player, objects, i * MSPEED) for i in [-1, 1]]
     for obj in [h_collide + v_collide][0]:
-        if obj and obj.name == "spike":
-            player.hit_count += 1
-        elif obj and obj.name == "goal":
-            leveled_up = True
-            player.respawn()
+        if obj:
+            if obj.name == "spike":
+                player.hit_count += 1
+            elif obj.name == "goal":
+                level += 1
+                player.respawn(level)
+            elif obj.name == "bouncepad":
+                player.yvel = -BOUNCE_STRENGTH
+                bounced += 1
 
     keys = pygame.key.get_pressed()
     if (keys[pygame.K_LEFT] or keys[pygame.K_a]) and not h_collide[0]:
@@ -264,7 +306,7 @@ def keys(player, objects):
     ) and player.fallcount == 0:
         player.yvel = -GRAVITY * JUMP
         player.animcount, player.fallcount = 0, 0
-    return leveled_up
+    return level, bounced
 
 
 def horizontal_collision(player, objects, dx):
@@ -330,35 +372,37 @@ def scroll(player, offset):
 
 def process_levels(levels):
     start_pos = []
+    objects = [Spike, Block, Bouncepad, Goal]
     for level_index in range(len(levels)):
         for obj_index in range(len(levels[level_index])):
             if obj_index == 0:
                 start_pos.append([(60 * levels[level_index][0][i]) for i in [0, 1]])
             else:
                 obj_info = levels[level_index][obj_index]
-                print(obj_info)
                 if obj_info[4][0] == "spike":
-                    levels[level_index][obj_index] = Spike(
+                    obj = 0
+                elif obj_info[4][0] == "block":
+                    obj = 1
+                elif obj_info[4][0] == "bouncepad":
+                    obj = 2
+                elif obj_info[4][0] == "goal":
+                    obj = 3
+                levels[level_index][obj_index] = (
+                    objects[obj](
+                        obj_info[0] * 60,
+                        obj_info[1] * 60,
+                        obj_info[2] * 60,
+                        obj_info[3] * 60,
+                    )
+                    if obj not in [0, 2]
+                    else objects[obj](
                         obj_info[0] * 60,
                         obj_info[1] * 60,
                         obj_info[2] * 60,
                         obj_info[3] * 60,
                         obj_info[4][1],
                     )
-                elif obj_info[4][0] == "block":
-                    levels[level_index][obj_index] = Block(
-                        obj_info[0] * 60,
-                        obj_info[1] * 60,
-                        obj_info[2] * 60,
-                        obj_info[3] * 60,
-                    )
-                elif obj_info[4][0] == "goal":
-                    levels[level_index][obj_index] = Goal(
-                        obj_info[0] * 60,
-                        obj_info[1] * 60,
-                        obj_info[2] * 60,
-                        obj_info[3] * 60,
-                    )
+                )
         levels[level_index] = levels[level_index][1:]
     return levels, start_pos
 
@@ -369,6 +413,7 @@ def main(wd, levels):
     player = Player(start_pos, 60, 60)
 
     level = 1
+    bounced = 0
     offset = [0, 0]  # offset amount up, left
     player.loop(FPS, offset, level)
 
@@ -383,10 +428,16 @@ def main(wd, levels):
         leveltile = join("background", TILES[level - 1])
         offset = player.loop(FPS, offset, level)
         for obj in levels[level - 1]:
-            if obj.name == "spike":
+            if obj.name in ["goal", "spike"]:
                 obj.loop()
-        if keys(player, levels[level - 1]):
-            level += 1
+            elif obj.name == "bouncepad":
+                if 0 < bounced <= 5:
+                    obj.loop()
+                    bounced += 1
+                else:
+                    bounced = 0
+                    obj.animcount = 0
+        level, bounced = keys(player, levels[level - 1], level, bounced)
         draw(wd, player, leveltile, levels[level - 1], offset)
         offset = scroll(player, offset)
 
