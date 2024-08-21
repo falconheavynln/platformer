@@ -1,4 +1,5 @@
 import pygame
+from level import levels
 
 from os import listdir
 from os.path import isfile, join
@@ -18,74 +19,11 @@ FRICTION = 4
 GRAVITY = 20
 TERMINALVEL = 180  # max falling speed
 SCROLL = [300, 200]  # distance from side of screen to scroll x, y
-RESP_BUFFER = 0.2  # secs before player goes back to start after dying
-BOUNCE_STRENGTH = 25  # amount bouncepads bounce
-
-# [x pos, y pos, width, height, [ID. first is always type of obj]]
-levels = [
-    [
-        [10, 6],
-        [10, 9, 1, 2, ["block"]],
-        [11, 10, 1, 1, ["block"]],
-        [14, 10, 3, 4, ["block"]],
-        [14, 10, 3, 4, ["block"]],
-        [17, 9, 3, 2, ["block"]],
-        [17, 11, 2, 2, ["block"]],
-        [9, 3, 4, 3, ["block"]],
-        [19, 11, 2, 1, ["block"]],
-        [17, 2, 2, 3, ["block"]],
-        [24, 10, 1, 1, ["block"]],
-        [24, 11, 1, 1, ["block"]],
-        [24, 12, 1, 1, ["block"]],
-        [24, 13, 1, 1, ["block"]],
-        [24, 14, 1, 1, ["block"]],
-        [26, 8, 1, 1, ["block"]],
-        [26, 5, 2, 1, ["block"]],
-        [26, 2, 2, 1, ["block"]],
-        [25, 3, 1, 2, ["block"]],
-        [28, 3, 1, 2, ["block"]],
-        [30, 11, 2, 2, ["block"]],
-        [32, 11, 2, 2, ["block"]],
-        [34, 11, 2, 2, ["block"]],
-        [36, 11, 2, 2, ["block"]],
-        [31, 9, 2, 2, ["block"]],
-        [35, 9.5, 2, 2, ["block"]],
-        [40, 12, 1, 1, ["block"]],
-        [43, 11, 1, 1, ["block"]],
-        [44, 9, 1, 1, ["block"]],
-        [43, 7, 1, 1, ["block"]],
-        [37, 5, 4, 2, ["block"]],
-        [32, 4, 2, 1, ["block"]],
-        [22, 2, 1, 2, ["block"]],
-        [9, 2, 1, 1, ["goal"]],
-    ],
-    [
-        [7, 6],
-        [5, 9, 1, 1, ["spike", 0]],
-        [10, 8, 1, 1, ["spike", 0]],
-        [2, 8, 1, 1, ["block"]],
-        [4, 6, 1, 1, ["block"]],
-        [4, 10, 3, 4, ["block"]],
-        [7, 10, 1, 1, ["block"]],
-        [10, 9, 1, 1, ["block"]],
-        [10, 11, 1, 1, ["block"]],
-        [4, 5, 1, 1, ["goal"]],
-    ],
-    [
-        [7, 6],
-        [6, 10, 1, 1, ["spike", 90]],
-        [10, 8, 1, 1, ["spike", 0]],
-        [2, 8, 1, 1, ["block"]],
-        [4, 6, 1, 1, ["block"]],
-        [4, 10, 1, 1, ["block"]],
-        [7, 10, 1, 1, ["block"]],
-        [10, 9, 1, 1, ["block"]],
-        [10, 11, 1, 1, ["block"]],
-    ],
-]
+RESP_BUFFER = 0.15  # secs before player goes back to start after dying
+BOUNCE_STRENGTH = 75  # amount bouncepads bounce
 
 PATH = "assets"
-ICON = "earth_crust.png"
+ICON = join("objects", "goal.png")
 TILES = [f"bg_tile_lvl{i + 1}.png" for i in range(4)]
 CHARACTER = "square"
 
@@ -153,8 +91,7 @@ class Player(pygame.sprite.Sprite):
         self.xvel, self.yvel, self.size = 0, 0, w
         self.mask, self.direction = None, "right"
         self.fallcount, self.animcount = 0, 0
-        self.hit_count = 0
-        self.start = start
+        self.hit_count, self.start = 0, start
 
     def update_sprite(self):
         sprite_sheet = "idle"
@@ -182,7 +119,7 @@ class Player(pygame.sprite.Sprite):
     def respawn(self, level):
         self.rect.x, self.rect.y = self.start[level - 1][0], self.start[level - 1][1]
         self.xvel, self.yvel = 0, 0
-        return 0
+        return [0, 0]
 
     def loop(self, fps, offset, level):
         self.yvel += (self.fallcount / fps) * GRAVITY  # gravity
@@ -203,11 +140,9 @@ class Player(pygame.sprite.Sprite):
             self.hit_count += 1
         if self.hit_count > fps * RESP_BUFFER + 2:
             self.hit_count = 0
-            self.respawn(level)
-            return [0, 0]
+            return self.respawn(level)
         elif self.rect.y >= HEIGHT + 200:
-            self.respawn(level)
-            return [0, 0]
+            return self.respawn(level)
         return offset
 
 
@@ -221,74 +156,83 @@ class Object(pygame.sprite.Sprite):
     def draw(self, wd, offset):
         wd.blit(self.image, (self.rect.x - offset[0], self.rect.y - offset[1]))
 
+    def update_mask(self):
+        self.mask = pygame.mask.from_surface(self.image)
+
 
 class Block(Object):
-    def __init__(self, x, y, w, h):
-        super().__init__(x, y, w, h, "block")
-        block = load_block(w, h)
+    def __init__(self, space):
+        super().__init__(space[0], space[1], space[2], space[3], "block")
+        block = load_block(space[2], space[3])
         self.image.blit(block, (0, 0))
-        self.mask = pygame.mask.from_surface(self.image)
+        self.update_mask()
 
 
 class Spike(Object):
-    def __init__(self, x, y, w, h, angle):
-        super().__init__(x, y, w, h, "spike")
+    def __init__(self, space, angle):
+        super().__init__(space[0], space[1], space[2], space[3], "spike")
         self.angle = angle
         self.image = rotate_image(
-            [load_sprite_sheets(join(PATH, "objects"), w, h)["spike"][0]], self.angle
+            load_sprite_sheets(join(PATH, "objects"), space[2], space[3])["spike"],
+            self.angle,
         )[0]
-        self.mask = pygame.mask.from_surface(self.image)
-        self.animcount = 0
-
-    def loop(self):
-        self.animcount += 1
-        self.rect = self.image.get_rect(topleft=(self.rect.x, self.rect.y))
-        self.mask = pygame.mask.from_surface(self.image)
+        self.update_mask()
 
 
 class Bouncepad(Object):
-    def __init__(self, x, y, w, h, angle):
-        super().__init__(x, y, w, h, "bouncepad")
+    def __init__(self, space, angle):
+        super().__init__(space[0], space[1], space[2], space[3], "bouncepad")
         self.sprites = rotate_image(
-            load_sprite_sheets(join(PATH, "objects"), w, h)["bouncepad"], angle
+            load_sprite_sheets(join(PATH, "objects"), space[2], space[3])["bouncepad"],
+            angle,
         )
-        self.image = self.sprites[2]
-        self.mask = pygame.mask.from_surface(self.image)
-        self.animcount = 0
+        self.image, self.animnum = self.sprites[2], 0
+        self.angle, self.bounced = angle, 0
+        self.update_mask()
 
     def loop(self):
-        self.image = self.sprites[(self.animcount // 2) % len(self.sprites)]
-        self.animcount += 1
-        if self.animcount // 2 > len(self.sprites):
-            self.animcount = 0
+        self.update_mask()
+        if self.bounced != 0:
+            if self.bounced <= 5:
+                self.bounced += 1
+                self.image = self.sprites[(self.animnum // 2) % len(self.sprites)]
+                if self.animnum // 2 > len(self.sprites):
+                    self.animnum = 0
+                else:
+                    self.animnum += 1
+            else:
+                self.animnum, self.bounced = 0, 0
 
 
 class Goal(Object):
-    def __init__(self, x, y, w, h):
-        super().__init__(x, y, w, h, "goal")
-        self.goal = load_sprite_sheets(join(PATH, "objects"), w, h)
-        self.image = self.goal["goal"][0]
-        self.mask = pygame.mask.from_surface(self.image)
-        self.animcount = 0
-
-    def loop(self):
-        self.rect = self.image.get_rect(topleft=(self.rect.x, self.rect.y))
-        self.mask = pygame.mask.from_surface(self.image)
+    def __init__(self, space):
+        super().__init__(space[0], space[1], space[2], space[3], "goal")
+        self.image = load_sprite_sheets(join(PATH, "objects"), space[2], space[3])[
+            "goal"
+        ][0]
+        self.update_mask()
 
 
 def keys(player, objects, level, bounced):
     v_collide = vertical_collision(player, objects)
     h_collide = [horizontal_collision(player, objects, i * MSPEED) for i in [-1, 1]]
-    for obj in [h_collide + v_collide][0]:
-        if obj:
+    for obj in h_collide + v_collide:
+        if obj and obj != "non-bounce":
             if obj.name == "spike":
                 player.hit_count += 1
             elif obj.name == "goal":
                 level += 1
                 player.respawn(level)
             elif obj.name == "bouncepad":
-                player.yvel = -BOUNCE_STRENGTH
-                bounced += 1
+                obj.bounced += 1
+                if obj.angle == 0:
+                    player.yvel = -BOUNCE_STRENGTH
+                elif obj.angle == 90:
+                    player.xvel = -BOUNCE_STRENGTH
+                elif obj.angle == 180:
+                    player.yvel = BOUNCE_STRENGTH
+                elif obj.angle == 270:
+                    player.xvel = BOUNCE_STRENGTH
 
     keys = pygame.key.get_pressed()
     if (keys[pygame.K_LEFT] or keys[pygame.K_a]) and not h_collide[0]:
@@ -301,60 +245,96 @@ def keys(player, objects, level, bounced):
         player.xvel = MSPEED if player.xvel >= MSPEED - AGILE else player.xvel + AGILE
     elif h_collide[0] or h_collide[1]:
         player.xvel = 0
-    if (
-        keys[pygame.K_SPACE] or keys[pygame.K_UP] or keys[pygame.K_w]
-    ) and player.fallcount == 0:
-        player.yvel = -GRAVITY * JUMP
-        player.animcount, player.fallcount = 0, 0
+    if (keys[pygame.K_UP] or keys[pygame.K_w]) and player.fallcount == 0:
+        player.yvel, player.animcount, player.fallcount = -GRAVITY * JUMP, 0, 0
     return level, bounced
 
 
 def horizontal_collision(player, objects, dx):
-    player.rect.x += dx
-    player.update()
-    collided = None
+    def check_pos(direction):
+        player.rect.x = player.rect.x + dx * direction
+        player.update()
+
+    check_pos(1)
     for obj in objects:
         if pygame.sprite.collide_mask(player, obj):
-            collided = obj
-
-    player.rect.x -= dx
-    player.update()
-    return collided
+            if not (
+                obj.name == "bouncepad"
+                and (
+                    (
+                        obj.rect.x
+                        in [
+                            player.rect.x + i
+                            for i in range(player.rect.w - MSPEED, player.rect.w)
+                        ]
+                        and obj.angle == 270
+                    )
+                    or (
+                        obj.rect.x
+                        in [
+                            player.rect.x - i
+                            for i in range(player.rect.w - MSPEED, player.rect.w)
+                        ]
+                        and obj.angle == 90
+                    )
+                )
+            ):
+                check_pos(-1)
+                return obj
+            else:
+                check_pos(-1)
+                return "non-bounce"
+    check_pos(-1)
+    return None
 
 
 def vertical_collision(player, objects):
     collided_objects = []
     for obj in objects:
-        if pygame.sprite.collide_mask(player, obj) and not (
-            obj.name == "spike"
-            and (player.rect.y + 59 == obj.rect.y or player.rect.y - 59 == obj.rect.y)
-        ):
+        if pygame.sprite.collide_mask(player, obj):
+            if not (
+                obj.name == "bouncepad"
+                and (
+                    (
+                        obj.rect.y
+                        in [
+                            player.rect.y + i
+                            for i in range(player.rect.h - MSPEED, player.rect.h)
+                        ]
+                        and obj.angle == 180
+                    )
+                    or (
+                        obj.rect.y
+                        in [
+                            player.rect.y - i
+                            for i in range(player.rect.h - MSPEED, player.rect.h)
+                        ]
+                        and obj.angle == 0
+                    )
+                )
+            ):
+                collided_objects.append(obj)
             if player.yvel > 0:
                 player.rect.bottom = obj.rect.top  # moves player to top of RECT
                 player.fallcount, player.yvel = 0, 1
             elif player.yvel < 0:
                 player.rect.top = obj.rect.bottom  # not top of mask
                 player.yvel = -player.yvel // 2
-            collided_objects.append(obj)
     return collided_objects
 
 
-def draw(wd, player, TILE, objects, offset):
+def draw(wd, player, tile, objects, offset):
     # background
-    tile_image = pygame.image.load(join(PATH, TILE))
+    tile_image = pygame.image.load(join(PATH, tile))
     _, _, tile_width, tile_height = tile_image.get_rect()
-    tile_pos = []
     for i in range(WIDTH // tile_width + 10):
         for j in range(HEIGHT // tile_height + 10):
-            pos = (i * tile_width, j * tile_height)
-            tile_pos.append(pos)
-    for TILE in tile_pos:
-        wd.blit(tile_image, TILE)
+            wd.blit(tile_image, (i * tile_width, j * tile_height))
 
     for obj in objects:
         obj.draw(wd, offset)
-
     player.draw(wd, offset)
+
     pygame.display.update()
 
 
@@ -388,19 +368,10 @@ def process_levels(levels):
                 elif obj_info[4][0] == "goal":
                     obj = 3
                 levels[level_index][obj_index] = (
-                    objects[obj](
-                        obj_info[0] * 60,
-                        obj_info[1] * 60,
-                        obj_info[2] * 60,
-                        obj_info[3] * 60,
-                    )
+                    objects[obj]([obj_info[i] * 60 for i in range(4)])
                     if obj not in [0, 2]
                     else objects[obj](
-                        obj_info[0] * 60,
-                        obj_info[1] * 60,
-                        obj_info[2] * 60,
-                        obj_info[3] * 60,
-                        obj_info[4][1],
+                        [obj_info[i] * 60 for i in range(4)], obj_info[4][1]
                     )
                 )
         levels[level_index] = levels[level_index][1:]
@@ -408,14 +379,10 @@ def process_levels(levels):
 
 
 def main(wd, levels):
-    clock = pygame.time.Clock()
     levels, start_pos = process_levels(levels)
+    clock = pygame.time.Clock()
     player = Player(start_pos, 60, 60)
-
-    level = 1
-    bounced = 0
-    offset = [0, 0]  # offset amount up, left
-    player.loop(FPS, offset, level)
+    level, bounced, offset = 2, 0, [0, 0]  # offset amount up, left
 
     run = True
     while run:
@@ -428,15 +395,8 @@ def main(wd, levels):
         leveltile = join("background", TILES[level - 1])
         offset = player.loop(FPS, offset, level)
         for obj in levels[level - 1]:
-            if obj.name in ["goal", "spike"]:
+            if obj.name == "bouncepad":
                 obj.loop()
-            elif obj.name == "bouncepad":
-                if 0 < bounced <= 5:
-                    obj.loop()
-                    bounced += 1
-                else:
-                    bounced = 0
-                    obj.animcount = 0
         level, bounced = keys(player, levels[level - 1], level, bounced)
         draw(wd, player, leveltile, levels[level - 1], offset)
         offset = scroll(player, offset)
