@@ -15,12 +15,12 @@ FPS = 60
 MSPEED = 10  # max ground speed
 AGILE = 5  # ability to change direction
 JUMP = 1
-FRICTION = 4
+FRICTION = 2.5
 GRAVITY = 20
 TERMINALVEL = 180  # max falling speed
 SCROLL = [300, 200]  # distance from side of screen to scroll x, y
 RESP_BUFFER = 0.15  # secs before player goes back to start after dying
-BOUNCE_STRENGTH = 75  # amount bouncepads bounce
+BOUNCE_STRENGTH = 35  # amount bouncepads bounce
 
 PATH = "assets"
 ICON = join("objects", "goal.png")
@@ -186,22 +186,21 @@ class Bouncepad(Object):
             load_sprite_sheets(join(PATH, "objects"), space[2], space[3])["bouncepad"],
             angle,
         )
-        self.image, self.animnum = self.sprites[2], 0
+        self.image, self.animnum = self.sprites[-1], 0
         self.angle, self.bounced = angle, 0
         self.update_mask()
 
     def loop(self):
         self.update_mask()
-        if self.bounced != 0:
-            if self.bounced <= 5:
-                self.bounced += 1
-                self.image = self.sprites[(self.animnum // 2) % len(self.sprites)]
-                if self.animnum // 2 > len(self.sprites):
-                    self.animnum = 0
-                else:
-                    self.animnum += 1
+        if self.bounced != 0 and self.bounced <= 5:
+            self.bounced += 1
+            self.image = self.sprites[(self.animnum // 2) % len(self.sprites)]
+            if self.animnum // 2 > len(self.sprites):
+                self.animnum = 0
             else:
-                self.animnum, self.bounced = 0, 0
+                self.animnum += 1
+        else:
+            self.animnum, self.bounced, self.image = 0, 0, self.sprites[-1]
 
 
 class Goal(Object):
@@ -214,6 +213,7 @@ class Goal(Object):
 
 
 def keys(player, objects, level, bounced):
+    boing = False
     v_collide = vertical_collision(player, objects)
     h_collide = [horizontal_collision(player, objects, i * MSPEED) for i in [-1, 1]]
     for obj in h_collide + v_collide:
@@ -225,6 +225,7 @@ def keys(player, objects, level, bounced):
                 player.respawn(level)
             elif obj.name == "bouncepad":
                 obj.bounced += 1
+                boing = True
                 if obj.angle == 0:
                     player.yvel = -BOUNCE_STRENGTH
                 elif obj.angle == 90:
@@ -235,15 +236,15 @@ def keys(player, objects, level, bounced):
                     player.xvel = BOUNCE_STRENGTH
 
     keys = pygame.key.get_pressed()
-    if (keys[pygame.K_LEFT] or keys[pygame.K_a]) and not h_collide[0]:
+    if (keys[pygame.K_LEFT] or keys[pygame.K_a]) and (not h_collide[0]):
         if player.direction != "left":
             player.direction, player.animcount = "left", 0
         player.xvel = -MSPEED if player.xvel <= -MSPEED + AGILE else player.xvel - AGILE
-    elif (keys[pygame.K_RIGHT] or keys[pygame.K_d]) and not h_collide[1]:
+    elif (keys[pygame.K_RIGHT] or keys[pygame.K_d]) and (not h_collide[1]):
         if player.direction != "right":
             player.direction, player.animcount = "right", 0
         player.xvel = MSPEED if player.xvel >= MSPEED - AGILE else player.xvel + AGILE
-    elif h_collide[0] or h_collide[1]:
+    elif (h_collide[0] or h_collide[1]) and not boing:
         player.xvel = 0
     if (keys[pygame.K_UP] or keys[pygame.K_w]) and player.fallcount == 0:
         player.yvel, player.animcount, player.fallcount = -GRAVITY * JUMP, 0, 0
@@ -265,7 +266,7 @@ def horizontal_collision(player, objects, dx):
                         obj.rect.x
                         in [
                             player.rect.x + i
-                            for i in range(player.rect.w - MSPEED, player.rect.w)
+                            for i in range(player.rect.w - MSPEED, player.rect.w + 1)
                         ]
                         and obj.angle == 270
                     )
@@ -273,7 +274,7 @@ def horizontal_collision(player, objects, dx):
                         obj.rect.x
                         in [
                             player.rect.x - i
-                            for i in range(player.rect.w - MSPEED, player.rect.w)
+                            for i in range(player.rect.w - MSPEED, player.rect.w + 1)
                         ]
                         and obj.angle == 90
                     )
@@ -296,19 +297,16 @@ def vertical_collision(player, objects):
                 obj.name == "bouncepad"
                 and (
                     (
-                        obj.rect.y
-                        in [
-                            player.rect.y + i
-                            for i in range(player.rect.h - MSPEED, player.rect.h)
-                        ]
+                        (
+                            obj.rect.y
+                            in [player.rect.y + i for i in range(0, player.rect.h)]
+                            or player.yvel == 1
+                        )
                         and obj.angle == 180
                     )
                     or (
                         obj.rect.y
-                        in [
-                            player.rect.y - i
-                            for i in range(player.rect.h - MSPEED, player.rect.h)
-                        ]
+                        in [player.rect.y - i for i in range(0, player.rect.h)]
                         and obj.angle == 0
                     )
                 )
@@ -353,20 +351,16 @@ def scroll(player, offset):
 def process_levels(levels):
     start_pos = []
     objects = [Spike, Block, Bouncepad, Goal]
+    obj_names = ["spike", "block", "bouncepad", "goal"]
     for level_index in range(len(levels)):
         for obj_index in range(len(levels[level_index])):
             if obj_index == 0:
                 start_pos.append([(60 * levels[level_index][0][i]) for i in [0, 1]])
             else:
                 obj_info = levels[level_index][obj_index]
-                if obj_info[4][0] == "spike":
-                    obj = 0
-                elif obj_info[4][0] == "block":
-                    obj = 1
-                elif obj_info[4][0] == "bouncepad":
-                    obj = 2
-                elif obj_info[4][0] == "goal":
-                    obj = 3
+                for obj_name_index in range(len(obj_names)):
+                    if obj_info[4][0] == obj_names[obj_name_index]:
+                        obj = obj_name_index
                 levels[level_index][obj_index] = (
                     objects[obj]([obj_info[i] * 60 for i in range(4)])
                     if obj not in [0, 2]
