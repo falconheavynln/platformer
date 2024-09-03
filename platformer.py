@@ -292,21 +292,38 @@ def horizontal_collision(player, objects, dx):
 def vertical_collision(player, objects):
     collided_objects = []
     for obj in objects:
-        if pygame.sprite.collide_mask(player, obj):
+        if pygame.sprite.collide_mask(player, obj) and not (
+            obj.name == "spike"
+            and (
+                (
+                    obj.rect.x + 60
+                    in [
+                        col_obj.rect.x
+                        for col_obj in collided_objects
+                        if col_obj.name in ["block", "bouncepad"]
+                    ]
+                )
+                or obj.rect.x - 60
+                in [
+                    col_obj.rect.x
+                    for col_obj in collided_objects
+                    if col_obj.name in ["block", "bouncepad"]
+                ]
+            )
+        ):
             if not (
                 obj.name == "bouncepad"
                 and (
                     (
                         (
                             obj.rect.y
-                            in [player.rect.y + i for i in range(0, player.rect.h)]
+                            in [player.rect.y + i for i in range(player.rect.h)]
                             or player.yvel == 1
                         )
                         and obj.angle == 180
                     )
                     or (
-                        obj.rect.y
-                        in [player.rect.y - i for i in range(0, player.rect.h)]
+                        obj.rect.y in [player.rect.y - i for i in range(player.rect.h)]
                         and obj.angle == 0
                     )
                 )
@@ -376,7 +393,7 @@ def main(wd, levels):
     levels, start_pos = process_levels(levels)
     clock = pygame.time.Clock()
     player = Player(start_pos, 60, 60)
-    level, bounced, offset = 2, 0, [0, 0]  # offset amount up, left
+    level, bounced, offset = 1, 0, [0, 0]  # offset amount up, left
 
     run = True
     while run:
@@ -388,9 +405,10 @@ def main(wd, levels):
 
         leveltile = join("background", TILES[level - 1])
         offset = player.loop(FPS, offset, level)
-        for obj in levels[level - 1]:
-            if obj.name == "bouncepad":
-                obj.loop()
+        _ = [
+            pad.loop()
+            for pad in filter(lambda obj: obj.name == "bouncepad", levels[level - 1])
+        ]
         level, bounced = keys(player, levels[level - 1], level, bounced)
         draw(wd, player, leveltile, levels[level - 1], offset)
         offset = scroll(player, offset)
