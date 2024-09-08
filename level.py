@@ -6,7 +6,7 @@
 
 # ***ALWAYS PUT SPIKE OBJECTS AT THE END OF EACH LEVEL***
 
-levels = [
+LEVELS = [
     [
         [10, 8],
         [10, 9, 1, 2, ["block"]],
@@ -95,4 +95,5 @@ levels = [
         [6, 10, 1, 1, ["spike", 90]],
         [10, 8, 1, 1, ["spike", 0]],
     ],
+    [[0, 0], [0, 1, 1, 1, ["block"]]],
 ]
