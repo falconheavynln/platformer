@@ -1,5 +1,6 @@
 import pygame
-from level import levels
+from level import LEVELS
+from layer import LAYERS
 
 from os import listdir
 from os.path import isfile, join
@@ -66,7 +67,29 @@ def process_levels(levels):
                     )
                 )
         levels[level_index] = levels[level_index][1:]
+    print(levels, start_pos)
     return levels, start_pos
+
+
+def process_layers(layers):
+    classed_layers = []
+    for lvl_layers in layers:
+        classed_layers.append([])
+        if lvl_layers:
+            classed_layers[-1].append(
+                [
+                    Layer(
+                        [layer[0][i] * 60 for i in range(4)],
+                        join(PATH, "layers", layer[1] + ".png"),
+                    )
+                    for layer in lvl_layers
+                ]
+            )
+        else:
+            classed_layers[-1].append(None)
+
+    print(classed_layers, "ffffffffffffffffffffffffff")
+    return classed_layers
 
 
 # returns rotation of sprite by angle clockwise for each obj in sprites
@@ -107,6 +130,19 @@ def load_block(w, h):
     return surface
 
 
+class Layer:
+    def __init__(self, space, path):
+        self.space = space
+        print(self.space)
+        self.path = path
+        self.rect = pygame.Rect(space[0], space[1], space[2], space[3])
+        self.image = pygame.Surface((space[2], space[3]), pygame.SRCALPHA, 32)
+        self.image.blit(pygame.image.load(path).convert_alpha(), (0, 0), self.rect)
+
+    def draw(self, offset):
+        wd.blit(self.image, (self.space[0] - offset[0], self.space[1] - offset[1]))
+
+
 class Player(pygame.sprite.Sprite):
     def __init__(self, start, w, h):
         super().__init__()
@@ -137,7 +173,7 @@ class Player(pygame.sprite.Sprite):
         self.rect = self.sprite.get_rect(topleft=(self.rect.x, self.rect.y))
         self.mask = pygame.mask.from_surface(self.sprite)
 
-    def draw(self, wd, offset):
+    def draw(self, offset):
         wd.blit(self.sprite, (self.rect.x - offset[0], self.rect.y - offset[1]))
 
     def respawn(self, level_num):
@@ -176,13 +212,13 @@ class Player(pygame.sprite.Sprite):
 
 
 class Object(pygame.sprite.Sprite):
-    def __init__(self, space, name=None):
+    def __init__(self, space, name=None):  # space = x, y, w, h
         super().__init__()
         self.rect = pygame.Rect(space[0], space[1], space[2], space[3])
         self.image = pygame.Surface((self.rect.w, self.rect.h), pygame.SRCALPHA)
         self.name = name
 
-    def draw(self, wd, offset):
+    def draw(self, offset):
         wd.blit(self.image, (self.rect.x - offset[0], self.rect.y - offset[1]))
 
     def update_mask(self):
@@ -376,7 +412,7 @@ def vertical_collision(player, objects):
     return collided_objects
 
 
-def draw(wd, player, tile, objects, offset):
+def draw(wd, player, tile, objects, layers, offset):
     tile_image = pygame.image.load(join(PATH, tile))
     _, _, tile_width, tile_height = tile_image.get_rect()
     _ = [
@@ -386,8 +422,9 @@ def draw(wd, player, tile, objects, offset):
         ]
         for i in range(WIDTH // tile_width + 10)
     ]
-    _ = [obj.draw(wd, offset) for obj in objects]
-    player.draw(wd, offset)
+    _ = [obj.draw(offset) for obj in objects]
+    _ = [layer[0].draw(offset) for layer in layers]
+    player.draw(offset)
 
     pygame.display.update()
 
@@ -413,11 +450,13 @@ def center(player):
     return scroll
 
 
-def main(wd, levels):
-    levels, start_pos = process_levels(levels)
+def main(wd):
+    levels, start_pos = process_levels(LEVELS)
+    layers = process_layers(LAYERS)
+    print(layers)
     clock = pygame.time.Clock()
     player = Player(start_pos, 60, 60)
-    level_num, bounced, offset = 2, 0, center(player)  # offset amount up, left
+    level_num, bounced, offset = 4, 0, center(player)  # offset amount up, left
 
     run = True
     while run:
@@ -428,11 +467,12 @@ def main(wd, levels):
                 break
 
         level = levels[level_num - 1]
+        lvl_layers = layers[level_num - 1]
         leveltile = join("background", TILES[level_num - 1])
         offset = player.loop(FPS, offset, level_num)
         _ = [obj.loop() for obj in level if obj.name == "bouncepad"]
         level_num, bounced = keys(player, level, level_num, bounced)
-        draw(wd, player, leveltile, level, offset)
+        draw(wd, player, leveltile, level, lvl_layers, offset)
         offset = scroll(player, offset)
 
     pygame.quit()
@@ -440,4 +480,4 @@ def main(wd, levels):
 
 
 if __name__ == "__main__":
-    main(wd, levels)
+    main(wd)
