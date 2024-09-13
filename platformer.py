@@ -404,7 +404,7 @@ def vertical_collision(player, objects):
         ]
         condition = False
         orig = player.rect.y
-        for i in range(GRADIENT):
+        for _ in range(GRADIENT):
             if pygame.sprite.collide_mask(player, obj) and not (
                 obj.name == "spike" and ((r(obj) in li) or l_(obj) - 60 in li)
             ):
@@ -415,18 +415,6 @@ def vertical_collision(player, objects):
                 player.update()
         player.rect.y = orig
         player.update()
-        # if pygame.sprite.collide_mask(player, obj) and not (
-        #     obj.name == "spike" and ((r(obj) in li) or l_(obj) - 60 in li)
-        # ):
-        #     condition = True
-        # player.rect.y -= player.yvel // 2
-        # player.update()
-        # if pygame.sprite.collide_mask(player, obj) and not (
-        #     obj.name == "spike" and ((r(obj) in li) or l_(obj) - 60 in li)
-        # ):
-        #     condition = True
-        # player.rect.y += player.yvel // 2
-        # player.update()
         if condition:
             if not (
                 obj.name == "bouncepad"
