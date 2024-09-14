@@ -144,7 +144,9 @@ class Layer:
 class Player(pygame.sprite.Sprite):
     def __init__(self, start, level_num, w, h):
         super().__init__()
-        self.SPRITES = load_sprite_sheets(join(PATH, CHARACTER), w, h, True)
+        self.SPRITES = load_sprite_sheets(
+            join(PATH, "characters", CHARACTER), w, h, True
+        )
         self.rect = pygame.Rect(start[level_num - 1][0], start[level_num - 1][1], w, h)
         self.xvel, self.yvel, self.size = 0, 0, w
         self.mask, self.direction = None, "right"
@@ -481,7 +483,7 @@ def center(player):
 def main(wd):
     levels, start_pos = process_levels(LEVELS)
     layers = process_layers(LAYERS)
-    level_num, bounced = 1, 0  # offset amount up, left
+    level_num, bounced = 4, 0  # offset amount up, left
     clock = pygame.time.Clock()
     player = Player(start_pos, level_num, 60, 60)
     offset = center(player)
