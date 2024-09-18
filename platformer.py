@@ -152,7 +152,7 @@ class Player(pygame.sprite.Sprite):
         self.mask, self.direction = None, "right"
         self.fallcount, self.animcount = 0, 0
         self.hit_count, self.start = 0, start
-        self.ground = False
+        self.ground, self.horiz = False, [False, False]
 
     def update_sprite(self):
         sprite_sheet = "idle"
@@ -284,10 +284,7 @@ class Goal(Object):
 
 def keys(player, objects, level_num, bounced):
     v_collide = vertical_collision(player, objects)
-    h_collide = [
-        horizontal_collision(player, objects, i * (abs(player.xvel) + 1))
-        for i in [-1, 1]
-    ]
+    h_collide = [horizontal_collision(player, objects)]
     for obj in h_collide + v_collide:
         if obj and obj != "non-bounce":
             if obj.name == "spike":
@@ -307,13 +304,15 @@ def keys(player, objects, level_num, bounced):
                     player.xvel = BOUNCE_STRENGTH
 
     keys = pygame.key.get_pressed()
-    if (keys[pygame.K_LEFT] or keys[pygame.K_a]) and (not h_collide[0]):
+    if (keys[pygame.K_LEFT] or keys[pygame.K_a]) and (not player.horiz[0]):
+        print("left")
         if player.direction != "left":
             player.direction, player.animcount = "left", 0
         player.xvel = -MSPEED if player.xvel <= -MSPEED + AGILE else player.xvel - AGILE
-    elif (keys[pygame.K_RIGHT] or keys[pygame.K_d]) and (not h_collide[1]):
+    elif (keys[pygame.K_RIGHT] or keys[pygame.K_d]) and (not player.horiz[1]):
         if player.direction != "right":
             player.direction, player.animcount = "right", 0
+        print("right")
         player.xvel = MSPEED if player.xvel >= MSPEED - AGILE else player.xvel + AGILE
     if (keys[pygame.K_UP] or keys[pygame.K_w]) and player.fallcount == 0:
         player.yvel, player.animcount, player.fallcount = -GRAVITY * JUMP, 0, 0
@@ -344,16 +343,19 @@ def h(obj):
     return t(obj) - b(obj)
 
 
-def horizontal_collision(player, objects, dx):
+def horizontal_collision(player, objects):
     def check_pos(direction):
-        player.rect.x += dx * direction
+        player.rect.x += player.xvel * direction
+        if player.xvel:
+            player.rect.x += player.xvel // abs(player.xvel)
         player.update()
 
-    def check_mask(player, obj, direction, orig=player.rect.x):
+    def check_mask(player, obj, direction):
         if pygame.sprite.collide_mask(player, obj):
             player.rect.x -= direction
             player.update()
-            return check_mask(player, obj, direction, orig)
+            return check_mask(player, obj, direction)
+        player.rect.x += direction
         return player.rect.x
 
     def boing(direction):
@@ -363,25 +365,30 @@ def horizontal_collision(player, objects, dx):
         ]
 
     check_pos(1)
+    print(player.horiz, player.rect)
     for obj in objects:
         if pygame.sprite.collide_mask(player, obj):
             if not (
                 obj.name == "bouncepad"
                 and ((boing(1) and obj.angle == 270) or (boing(-1) and obj.angle == 90))
             ):
-                check_pos(-1)
-                if player.xvel < 0 and dx < 0:
-                    player.rect.right = r(obj) + 5
+                print("dx:", player.xvel)
+                if player.xvel <= 0:
+                    player.horiz[0] = True
                     check_mask(player, obj, -1)
-                    player.xvel = 0
-                if player.xvel > 0 and dx > 0:
-                    player.rect.left = l_(obj) - 5
+                if player.xvel >= 0:
+                    player.horiz[1] = True
                     check_mask(player, obj, 1)
                 player.xvel = 0
                 return obj
             else:
                 check_pos(-1)
                 return "non-bounce"
+    if player.xvel > 0 or (player.horiz[1] and player.xvel != 0):
+        player.horiz[1] = False
+    if player.xvel < 0 or (player.horiz[0] and player.xvel != 0):
+        player.horiz[0] = False
+    print(player.horiz, "affter")
     check_pos(-1)
     return None
 
@@ -483,7 +490,7 @@ def center(player):
 def main(wd):
     levels, start_pos = process_levels(LEVELS)
     layers = process_layers(LAYERS)
-    level_num, bounced = 4, 0  # offset amount up, left
+    level_num, bounced = 1, 0  # offset amount up, left
     clock = pygame.time.Clock()
     player = Player(start_pos, level_num, 60, 60)
     offset = center(player)
@@ -491,6 +498,7 @@ def main(wd):
     run = True
     while run:
         clock.tick(FPS)
+        print("tickkk")
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
