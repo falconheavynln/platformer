@@ -27,7 +27,7 @@ BOUNCE_STRENGTH = 35  # amount bouncepads bounce
 PATH = "assets"
 ICON = join("objects", "goal.png")
 TILES = [f"bg_tile_lvl{i + 1}.png" for i in range(4)]
-CHARACTER = "the_ultimate_test"
+CHARACTER = "anyshape_collision_test"
 
 
 wd = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -152,7 +152,7 @@ class Player(pygame.sprite.Sprite):
         self.mask, self.direction = None, "right"
         self.fallcount, self.animcount = 0, 0
         self.hit_count, self.start = 0, start
-        self.ground, self.horiz = False, [False, False]
+        self.ground, self.horiz = [None, None], [None, None]
 
     def update_sprite(self):
         sprite_sheet = "idle"
@@ -183,6 +183,7 @@ class Player(pygame.sprite.Sprite):
             self.start[level_num - 1][1],
         )
         self.xvel, self.yvel = 0, 0
+        self.ground, self.horiz = [None, None], [None, None]
         return center(self)
 
     def loop(self, fps, offset, level_num):
@@ -284,7 +285,29 @@ class Goal(Object):
 
 def keys(player, objects, level_num, bounced):
     v_collide = vertical_collision(player, objects)
-    h_collide = [horizontal_collision(player, objects)]
+
+    def horiz():
+        if player.xvel:
+            return horizontal_collision(player, objects, player.xvel)
+        elif player.xvel == 0 and player.horiz[0]:
+            player.rect.x -= 1
+            c = pygame.sprite.collide_mask(player, player.horiz[0])
+            player.rect.x += 1
+            if not c:
+                player.horiz[0] = None
+            return player.horiz
+        elif player.xvel == 0 and player.horiz[1]:
+            player.rect.x += 1
+            c = pygame.sprite.collide_mask(player, player.horiz[1])
+            player.rect.x -= 1
+            if not c:
+                player.horiz[1] = None
+            return player.horiz
+        else:
+            return [None, None]
+
+    h_collide = horiz()
+    # print([v_collide, h_collide])
     for obj in h_collide + v_collide:
         if obj and obj != "non-bounce":
             if obj.name == "spike":
@@ -304,15 +327,13 @@ def keys(player, objects, level_num, bounced):
                     player.xvel = BOUNCE_STRENGTH
 
     keys = pygame.key.get_pressed()
-    if (keys[pygame.K_LEFT] or keys[pygame.K_a]) and (not player.horiz[0]):
-        print("left")
+    if (keys[pygame.K_LEFT] or keys[pygame.K_a]) and (not h_collide[0]):
         if player.direction != "left":
             player.direction, player.animcount = "left", 0
         player.xvel = -MSPEED if player.xvel <= -MSPEED + AGILE else player.xvel - AGILE
-    elif (keys[pygame.K_RIGHT] or keys[pygame.K_d]) and (not player.horiz[1]):
+    elif (keys[pygame.K_RIGHT] or keys[pygame.K_d]) and (not h_collide[1]):
         if player.direction != "right":
             player.direction, player.animcount = "right", 0
-        print("right")
         player.xvel = MSPEED if player.xvel >= MSPEED - AGILE else player.xvel + AGILE
     if (keys[pygame.K_UP] or keys[pygame.K_w]) and player.fallcount == 0:
         player.yvel, player.animcount, player.fallcount = -GRAVITY * JUMP, 0, 0
@@ -343,9 +364,9 @@ def h(obj):
     return t(obj) - b(obj)
 
 
-def horizontal_collision(player, objects):
+def horizontal_collision(player, objects, direction, actual=True):
     def check_pos(direction):
-        player.rect.x += player.xvel * direction
+        player.rect.x += direction
         if player.xvel:
             player.rect.x += player.xvel // abs(player.xvel)
         player.update()
@@ -355,42 +376,38 @@ def horizontal_collision(player, objects):
             player.rect.x -= direction
             player.update()
             return check_mask(player, obj, direction)
-        player.rect.x += direction
         return player.rect.x
 
-    def boing(direction):
-        return l_(obj) in [
-            l_(player) + (i * direction)
-            for i in range(w(player) - MSPEED, w(player) + 1)
-        ]
+    # def boing(direction):
+    #     return l_(obj) in [
+    #         l_(player) + (i * direction)
+    #         for i in range(w(player) - MSPEED, w(player) + 1)
+    #     ]
 
-    check_pos(1)
-    print(player.horiz, player.rect)
+    player.horiz = [None, None]
+    check_pos(direction)
     for obj in objects:
         if pygame.sprite.collide_mask(player, obj):
-            if not (
-                obj.name == "bouncepad"
-                and ((boing(1) and obj.angle == 270) or (boing(-1) and obj.angle == 90))
-            ):
-                print("dx:", player.xvel)
+            # if not (
+            #     obj.name == "bouncepad"
+            #     and ((boing(1) and obj.angle == 270) or (boing(-1) and obj.angle == 90))
+            # ):
+            #     # print("dx:", player.xvel)
+            #     pass
+            # else:
+            #     check_pos(-1)
+            #     return player.horiz
+            if actual:
                 if player.xvel <= 0:
-                    player.horiz[0] = True
+                    player.horiz[0] = obj
                     check_mask(player, obj, -1)
                 if player.xvel >= 0:
-                    player.horiz[1] = True
+                    player.horiz[1] = obj
                     check_mask(player, obj, 1)
                 player.xvel = 0
-                return obj
-            else:
-                check_pos(-1)
-                return "non-bounce"
-    if player.xvel > 0 or (player.horiz[1] and player.xvel != 0):
-        player.horiz[1] = False
-    if player.xvel < 0 or (player.horiz[0] and player.xvel != 0):
-        player.horiz[0] = False
-    print(player.horiz, "affter")
-    check_pos(-1)
-    return None
+            return player.horiz
+    check_pos(-direction)
+    return player.horiz
 
 
 def vertical_collision(player, objects):
@@ -402,14 +419,14 @@ def vertical_collision(player, objects):
             player.rect.y -= direction
             player.update()
             return check_mask(player, obj, direction)
-        return orig - player.rect.y == 1
+        return player.rect.y
 
-    collided_objects = []
+    player.ground = [None, None]
     for obj in objects:
         li = [
             l_(col_obj)
-            for col_obj in collided_objects
-            if col_obj.name in ["block", "bouncepad"]
+            for col_obj in player.ground
+            if col_obj and col_obj.name in ["block", "bouncepad"]
         ]
         condition = False
         orig = player.rect.y
@@ -432,20 +449,16 @@ def vertical_collision(player, objects):
                     or (boing(-1) and obj.angle == 0)
                 )
             ):
-                collided_objects.append(obj)
+                pass
             if player.yvel >= 0:
-                player.rect.top = t(obj) - 5
-                if check_mask(player, obj, 1):
-                    player.ground = True
-                else:
-                    player.ground = False
+                check_mask(player, obj, 1)
+                player.ground[0] = obj
                 player.fallcount, player.yvel = 0, 1
-            elif player.yvel < 0:
-                player.rect.bottom = b(obj) + 5
-                if check_mask(player, obj, -1):
-                    collided_objects.pop()
+            elif player.yvel <= 0:
+                check_mask(player, obj, -1)
+                player.ground[1] = obj
                 player.yvel = 0
-    return collided_objects
+    return player.ground
 
 
 def draw(wd, player, tile, objects, layers, offset):
@@ -498,7 +511,6 @@ def main(wd):
     run = True
     while run:
         clock.tick(FPS)
-        print("tickkk")
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
