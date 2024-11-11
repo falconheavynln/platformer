@@ -4,7 +4,7 @@ from level import LEVELS
 from os import listdir
 from os.path import isfile, join
 
-from math import ceil
+from math import floor, ceil
 
 pygame.init()
 
@@ -13,21 +13,20 @@ ANIM_DELAY = 7
 WIDTH = 1000
 HEIGHT = 800
 FPS = 60
-GRADIENT = 3
 
 MSPEED = 10  # max ground speed
-AGILE = 5  # ability to change direction
+AGILE = 4  # ability to change direction
 JUMP = 1
 FRICTION = 1.4
-GRAVITY = -20
-TERMINALVEL = 25  # max falling speed
+GRAVITY = 20
+TERMINALVEL = 25  # max moving speed
 SCROLL = [300, 200]  # distance from side of screen to scroll x, y
 RESP_BUFFER = 0.15  # secs before player goes back to start after dying
 BOUNCE_STRENGTH = 35  # amount bouncepads bounce
 
 PATH = "assets"
 ICON = join("objects", "goal.png")
-TILES = [f"bg_tile_lvl{i + 1}.png" for i in range(4)]
+TILES = [f"bg_tile_lvl{i + 1}.png" for i in range(8)]
 CHARACTER = "anyshape_collision_test"
 
 
@@ -116,12 +115,11 @@ class Player(pygame.sprite.Sprite):
         self.SPRITES = load_sprite_sheets(
             join(PATH, "characters", CHARACTER), w, h, True
         )
-        self.rect = pygame.Rect(start[level_num - 1][0], start[level_num - 1][1], w, h)
+        self.float_rect = [start[level_num - 1][0], start[level_num - 1][1], w, h]
         self.xvel, self.yvel, self.size = 0, 0, w
         self.mask, self.direction = None, "right"
         self.fallcount, self.animcount = 0, 0
         self.hit_count, self.start = 0, start
-        self.ground, self.horiz = [None, None], [None, None]
         self.collide = [None] * 4
         self.update_sprite()
 
@@ -142,40 +140,28 @@ class Player(pygame.sprite.Sprite):
         self.update()
 
     def update(self):
-        self.rect = self.sprite.get_rect(topleft=(self.rect.x, self.rect.y))
+        self.rect = self.sprite.get_rect(
+            topleft=(round(self.float_rect[0]), round(self.float_rect[1]))
+        )
         self.mask = pygame.mask.from_surface(self.sprite)
 
     def draw(self, offset):
-        wd.blit(self.sprite, (self.rect.x - offset[0], self.rect.y - offset[1]))
+        wd.blit(self.sprite, [floor(self.float_rect[i] - offset[i]) for i in [0, 1]])
 
     def respawn(self, level_num):
-        self.rect.x, self.rect.y = (
+        self.float_rect[0], self.float_rect[1] = (
             self.start[level_num - 1][0],
             self.start[level_num - 1][1],
         )
         self.xvel, self.yvel = 0, 0
-        self.ground, self.horiz = [None, None], [None, None]
         self.collide = [None] * 4
         self.fallcount = 0
-        return center(self)
+        self.update()
+        return scroll(self, [0, 0])
 
     def loop(self, fps, objects, offset, level_num):
+        self.adjust_speed()
         self.collision(objects)
-        # print(self.xvel, self.yvel)
-
-        # friction
-        if self.xvel > FRICTION:
-            self.xvel -= FRICTION / 2
-        elif self.xvel < -FRICTION:
-            self.xvel += FRICTION / 2
-        else:
-            self.xvel = 0
-
-        if self.yvel > TERMINALVEL:
-            self.yvel = TERMINALVEL
-        elif self.yvel < -TERMINALVEL:
-            self.yvel = -TERMINALVEL
-
         self.update_sprite()
 
         if self.hit_count:
@@ -183,63 +169,83 @@ class Player(pygame.sprite.Sprite):
         if self.hit_count > fps * RESP_BUFFER + 2:
             self.hit_count = 0
             return self.respawn(level_num)
-        elif self.rect.y >= 2000 or self.rect.y <= -2000:
+        elif self.float_rect[1] >= 50000 or self.float_rect[1] <= -50000:
             return self.respawn(level_num)
         return offset
 
-    def collision(self, objects):
-        def add_incr(x, y):
-            self.rect.x += x
-            self.rect.y += y
-            self.update()
+    def adjust_speed(self):
+        if self.xvel > FRICTION:
+            self.xvel -= FRICTION / 2
+        elif self.xvel < -FRICTION:
+            self.xvel += FRICTION / 2
+        else:
+            self.xvel = 0
 
-        def try_direction(x, y, object):
-            add_incr(x, y)
-            collided = has_collided(obj)
-            add_incr(-x, -y)
-            return object if collided else None
+        if self.xvel > TERMINALVEL:
+            self.xvel = TERMINALVEL
+        elif self.xvel < -TERMINALVEL:
+            self.xvel = -TERMINALVEL
 
-        def has_collided(obj):
-            return pygame.sprite.collide_mask(self, obj) and obj.name != "layer"
-
-        def find_non_collision(obj, incr, max_speed):
-            orig = [self.rect.x, self.rect.y]
-            for _ in range(max_speed):
-                if not has_collided(obj):
-                    return
-                add_incr(-incr[0], -incr[1])
-            print("wha")
-            self.rect.x, self.rect.y = orig[0], orig[1]
-            for _ in range(max_speed):
-                if not has_collided(obj):
-                    return
-                self.rect.y -= 1
-
-        def deal_with_collision():
-            if self.collide[0] or self.collide[1]:
-                # print("horix")
-                self.xvel = 0
-            if (self.collide[2] and GRAVITY < 0) or (self.collide[3] and GRAVITY > 0):
-                self.fallcount = 0
-            if self.collide[2] or self.collide[3]:
-                self.yvel = 0
+        if self.yvel > TERMINALVEL:
+            self.yvel = TERMINALVEL
+        elif self.yvel < -TERMINALVEL:
+            self.yvel = -TERMINALVEL
 
         self.fallcount += 1
         if not ((self.collide[2] and GRAVITY < 0) or (self.collide[3] and GRAVITY > 0)):
             self.yvel += (self.fallcount / FPS) * GRAVITY  # gravity
+
+    def collision(self, objects):
+        def add_incr(x, y):
+            self.float_rect[0] += x
+            self.float_rect[1] += y
+            self.update()
+
+        def try_direction(direction, obj):
+            add_incr(direction[0], direction[1])
+            collided = has_collided(obj)
+            add_incr(-direction[0], -direction[1])
+            return obj if collided else None
+
+        def has_collided(obj):
+            return pygame.sprite.collide_mask(self, obj) and obj.name != "layer"
+
+        def end():
+            for same in range(4):
+                if same_coll[same]:
+                    self.collide[same] = same_coll[same]
+            for i in range(4):
+                self.float_rect[i] = round(self.float_rect[i])
+            if self.collide[0] or self.collide[1]:
+                self.xvel = 0
+            if self.collide[2] or self.collide[3]:
+                self.yvel = 0
+            if (self.collide[2] and GRAVITY < 0) or (self.collide[3] and GRAVITY > 0):
+                self.fallcount = 0
+
+        axes = [[-1, 0], [1, 0], [0, -1], [0, 1]]
+        for i in range(4):
+            shifted = False
+            if self.collide[i]:
+                for obj in objects:
+                    if try_direction(axes[i], obj):
+                        self.collide[i] = obj
+                        shifted = True
+                        break
+                if not shifted:
+                    self.collide[i] = None
         fx, fy = ceil(abs(self.xvel)), ceil(abs(self.yvel))
         max_speed = fx if fx > fy else fy
-        # print(max_speed)
+        same_coll = [None] * 4
         if max_speed == 0:
-            deal_with_collision()
-            return
-
-        self.collide = [None] * 4
+            end()
+            return None
+        if self.xvel == 0:
+            same_coll[0], same_coll[1] = self.collide[0], self.collide[1]
+        if self.yvel == 0:
+            same_coll[2], same_coll[3] = self.collide[2], self.collide[3]
         increment = [self.xvel / max_speed, self.yvel / max_speed]
-        # print(increment, self.xvel, self.yvel)
-        axes = [[-1, 0], [1, 0], [0, -1], [0, 1]]
         direction = [abs(i) / i if i else 0 for i in [self.xvel, self.yvel]]
-        # print(direction)
         for _ in range(max_speed):
             add_incr(increment[0], increment[1])
             for obj in objects:
@@ -247,20 +253,14 @@ class Player(pygame.sprite.Sprite):
                     continue
 
                 add_incr(-increment[0], -increment[1])
-                find_non_collision(obj, increment, max_speed)  # for mask changes
-                coll = [try_direction(i[0], i[1], obj) for i in axes]
-                # print(coll[2])
+                coll = [try_direction(i, obj) for i in axes]
                 self.collide = [
                     obj if (coll[i] and (direction[i // 2] in axes[i % 2])) else None
                     for i in range(4)
                 ]  # left, right, top, bottom
-                break
-        for obj in objects:
-            if obj in self.collide:
-                obj.touched = True
-            else:
-                obj.touched = False
-        deal_with_collision()
+                end()
+                return None
+        end()
 
 
 class Object(pygame.sprite.Sprite):
@@ -272,8 +272,8 @@ class Object(pygame.sprite.Sprite):
         self.touched = False
 
     def draw(self, offset):
-        # if not self.touched:
-        wd.blit(self.image, (self.rect.x - offset[0], self.rect.y - offset[1]))
+        if not self.touched:
+            wd.blit(self.image, (self.rect.x - offset[0], self.rect.y - offset[1]))
 
     def update_mask(self):
         self.mask = pygame.mask.from_surface(self.image)
@@ -322,8 +322,10 @@ class Bouncepad(Object):
             ],
             angle,
         )
-        self.image, self.animnum = self.sprites[-1], 0
-        self.angle, self.bounced = angle, 0
+        self.image = self.sprites[-1]
+        self.animnum = 0
+        self.angle = angle
+        self.bounced = 0
         self.update_mask()
 
     def loop(self):
@@ -336,7 +338,9 @@ class Bouncepad(Object):
             else:
                 self.animnum += 1
         else:
-            self.animnum, self.bounced, self.image = 0, 0, self.sprites[-1]
+            self.animnum = 0
+            self.bounced = 0
+            self.image = self.sprites[-1]
 
 
 class Goal(Object):
@@ -348,8 +352,7 @@ class Goal(Object):
         self.update_mask()
 
 
-def keys(player, level_num, bounced):
-    print(player.collide, player.xvel, player.yvel, player.fallcount, sep=" | ")
+def obj_interaction(player, level_num):
     for obj in player.collide:
         if obj and obj != "non-bounce":
             if obj.name == "spike":
@@ -367,21 +370,42 @@ def keys(player, level_num, bounced):
                     player.yvel = BOUNCE_STRENGTH
                 elif obj.angle == 270:
                     player.xvel = BOUNCE_STRENGTH
+    return level_num
+
+
+def keys(player, level_num):
+    # print(
+    #     player.collide,
+    #     player.xvel,
+    #     player.yvel,
+    #     player.fallcount,
+    #     sep=" | ",
+    # )
 
     keys = pygame.key.get_pressed()
-    if keys[pygame.K_LEFT] or keys[pygame.K_a] and (not player.collide[0]):
-        if player.direction != "left":
-            player.direction, player.animcount = "left", 0
-        player.xvel = -MSPEED if player.xvel <= -MSPEED + AGILE else player.xvel - AGILE
+    if keys[pygame.K_LEFT] or keys[pygame.K_a]:
+        if not player.collide[0]:
+            if player.direction != "left":
+                player.direction = "left"
+                player.animcount = 0
+            if player.xvel <= -MSPEED + AGILE:
+                player.xvel = -MSPEED
+            else:
+                player.xvel -= AGILE
     elif keys[pygame.K_RIGHT] or keys[pygame.K_d] and (not player.collide[1]):
         if player.direction != "right":
-            player.direction, player.animcount = "right", 0
-        player.xvel = MSPEED if player.xvel >= MSPEED - AGILE else player.xvel + AGILE
+            player.direction = "right"
+            player.animcount = 0
+        if player.xvel >= MSPEED - AGILE:
+            player.xvel = MSPEED
+        else:
+            player.xvel += AGILE
     if (keys[pygame.K_UP] or keys[pygame.K_w]) and player.fallcount == 0:
-        player.yvel, player.animcount, player.fallcount = -GRAVITY * JUMP, 0, 0
+        player.yvel = -GRAVITY * JUMP
+        player.animcount = 0
+        player.fallcount = 0
     if keys[pygame.K_r]:
         player.respawn(level_num)
-    return level_num, bounced
 
 
 def draw(wd, player, tile, objects, offset):
@@ -399,32 +423,29 @@ def draw(wd, player, tile, objects, offset):
 
 
 def scroll(player, offset):
-    if (player.rect.right - offset[0] >= WIDTH - SCROLL[0] and player.xvel > 0) or (
-        (player.rect.left - offset[0] <= SCROLL[0]) and player.xvel < 0
+    if (
+        player.float_rect[0] + player.float_rect[2] - offset[0] >= WIDTH - SCROLL[0]
+        and player.xvel > 0
     ):
-        offset[0] += player.xvel
-    if (player.rect.bottom - offset[1] >= HEIGHT - SCROLL[1] and player.yvel > 0) or (
-        (player.rect.top - offset[1] <= SCROLL[1]) and player.yvel < 0
+        offset[0] = player.float_rect[0] + player.float_rect[2] - (WIDTH - SCROLL[0])
+    elif (player.float_rect[0] - offset[0] <= SCROLL[0]) and player.xvel < 0:
+        offset[0] = player.float_rect[0] - SCROLL[0]
+    if (
+        player.float_rect[1] - player.float_rect[3] >= HEIGHT - SCROLL[1]
+        and player.yvel > 0
     ):
-        offset[1] += player.yvel
+        offset[1] = player.float_rect[1] + player.float_rect[3] - (HEIGHT - SCROLL[1])
+    elif (player.float_rect[1] - offset[1] <= SCROLL[1]) and player.yvel < 0:
+        offset[1] = player.float_rect[1] - SCROLL[1]
     return offset
-
-
-def center(player):
-    scroll = [0, 0]
-    if not (SCROLL[0] <= player.rect.x <= WIDTH - SCROLL[0]):
-        scroll[0] = player.rect.x - WIDTH / 2
-    if not (SCROLL[1] <= player.rect.y <= HEIGHT - SCROLL[1]):
-        scroll[1] = player.rect.y - HEIGHT / 2
-    return scroll
 
 
 def main(wd):
     levels, start_pos = process_levels(LEVELS)
-    level_num, bounced = 4, 0  # offset amount up, left
+    level_num = 4
     clock = pygame.time.Clock()
     player = Player(start_pos, level_num, 60, 60)
-    offset = center(player)
+    offset = scroll(player, [0, 0])  # offset amount up, left
 
     run = True
     while run:
@@ -434,16 +455,17 @@ def main(wd):
                 run = False
                 break
 
+        # print(player.rect.x, offset[0])
         level = levels[level_num - 1]
         leveltile = join("background", TILES[level_num - 1])
         offset = player.loop(FPS, level, offset, level_num)
         _ = [obj.loop() for obj in level if obj.name == "bouncepad"]
-        level_num, bounced = keys(player, level_num, bounced)
+        level_num = obj_interaction(player, level_num)
+        keys(player, level_num)
         draw(wd, player, leveltile, level, offset)
         offset = scroll(player, offset)
 
     pygame.quit()
-    quit()
 
 
 if __name__ == "__main__":
