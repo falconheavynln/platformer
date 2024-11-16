@@ -16,13 +16,15 @@ FPS = 60
 
 MSPEED = 15  # max ground speed
 AGILE = 4  # ability to change direction
-JUMP = 1
+JUMP = 20
 FRICTION = 3
 GRAVITY = 20
 TERMINALVEL = 60  # max moving speed
 SCROLL = [300, 200]  # distance from side of screen to scroll x, y
 RESP_BUFFER = 0.15  # secs before player goes back to start after dying
 BOUNCE_STRENGTH = 60  # amount bouncepads bounce
+
+level_num = 5
 
 PATH = "assets"
 ICON = join("objects", "goal.png")
@@ -35,6 +37,9 @@ CHARACTER = "anyshape_collision_test"
 wd = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption(CAPTION)
 pygame.display.set_icon(pygame.image.load(join(PATH, ICON)))
+
+
+JUMP *= 1 / GRAVITY
 
 # x_vel is velocity to the right
 # y_vel is velocity down
@@ -212,6 +217,17 @@ class Player(pygame.sprite.Sprite):
         def has_collided(obj) -> bool:
             return pygame.sprite.collide_mask(self, obj) and obj.name != "layer"
 
+        def try_mask(direction):
+            orig_direction = self.direction
+            self.direction = direction
+            self.update_sprite()
+            for obj in objects:
+                if has_collided(obj):
+                    self.direction = orig_direction
+                    self.update_sprite()
+                    return False
+            return True
+
         def end() -> None:
             for same in range(4):
                 if same_coll[same]:
@@ -224,22 +240,23 @@ class Player(pygame.sprite.Sprite):
                 self.yvel = 0
             if (self.collide[2] and GRAVITY < 0) or (self.collide[3] and GRAVITY > 0):
                 self.fallcount = 0
-            if self.xvel > 0:
-                self.direction = "right"
-            elif self.xvel < 0:
-                self.direction = "left"
+            if self.xvel < 0:
+                try_mask("left")
+            elif self.xvel > 0:
+                try_mask("right")
 
         axes = [[-1, 0], [1, 0], [0, -1], [0, 1]]
         for i in range(4):
-            shifted = False
-            if self.collide[i]:
-                for obj in objects:
-                    if try_direction(axes[i], obj):
-                        self.collide[i] = obj
-                        shifted = True
-                        break
-                if not shifted:
-                    self.collide[i] = None
+            changed_coll = False
+            if not self.collide[i]:
+                continue
+            for obj in objects:
+                if try_direction(axes[i], obj):
+                    self.collide[i] = obj
+                    changed_coll = True
+                    break
+            if not changed_coll:
+                self.collide[i] = None
         fx, fy = ceil(abs(self.xvel)), ceil(abs(self.yvel))
         max_speed = fx if fx > fy else fy
         same_coll = [None] * 4
@@ -438,9 +455,8 @@ def scroll(player, offset) -> list[float, float]:
     return offset
 
 
-def main(wd) -> None:
+def main(wd, level_num) -> None:
     levels, start_pos = process_levels(LEVELS)
-    level_num = 4
     clock = pygame.time.Clock()
     player = Player(start_pos, level_num, 60, 60)
     offset = scroll(player, [0, 0])  # offset amount up, left
@@ -466,4 +482,4 @@ def main(wd) -> None:
 
 
 if __name__ == "__main__":
-    main(wd)
+    main(wd, level_num)
